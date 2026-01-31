@@ -383,6 +383,36 @@ async function generateAR() {
 // ============================================
 // INITIALIZE
 // ============================================
+function loadUserInfo() {
+    try {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            const user = JSON.parse(userStr);
+            const userNameElement = document.getElementById('userName');
+            const userEmailElement = document.getElementById('userEmail');
+            
+            if (userNameElement) {
+                userNameElement.textContent = user.name || 'Unknown User';
+            }
+            
+            if (userEmailElement) {
+                userEmailElement.textContent = user.email || 'No email';
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error loading user info:', error);
+        const userNameElement = document.getElementById('userName');
+        const userEmailElement = document.getElementById('userEmail');
+        
+        if (userNameElement) {
+            userNameElement.textContent = 'Error loading user';
+        }
+        if (userEmailElement) {
+            userEmailElement.textContent = 'Please refresh';
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Reports page loading...');
     
@@ -390,15 +420,8 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
-    // Load user email
-    const token = getToken();
-    fetch(API_URL + '/api/auth/profile', {
-        headers: { 'Authorization': 'Bearer ' + token }
-    })
-    .then(r => r.json())
-    .then(user => {
-        document.getElementById('userEmail').textContent = user.email;
-    });
+    // Load user info
+    loadUserInfo();
     
     // Setup logout button
     const logoutBtn = document.getElementById('logoutBtn');

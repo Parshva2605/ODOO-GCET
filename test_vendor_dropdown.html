@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Vendor Dropdown</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        select { width: 300px; padding: 8px; margin: 10px 0; }
+        button { padding: 10px 15px; margin: 5px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Vendor Dropdown Test</h1>
+    
+    <div class="step">
+        <h3>Step 1: Login</h3>
+        <input type="email" id="email" placeholder="Email" value="admin@shivfurniture.com">
+        <input type="password" id="password" placeholder="Password" value="admin123">
+        <button onclick="login()">Login</button>
+        <div id="loginResult"></div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 2: Test Contacts API</h3>
+        <button onclick="testContactsAPI()">Test Contacts API</button>
+        <div id="contactsResult"></div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 3: Test Vendor Loading</h3>
+        <button onclick="loadVendorsTest()">Load Vendors</button>
+        <select id="vendorSelect">
+            <option value="">Select Vendor</option>
+        </select>
+        <div id="vendorResult"></div>
+    </div>
+
+    <script>
+    const API_URL = 'http://127.0.0.1:5000';
+    let token = null;
+
+    async function login() {
+        try {
+            const response = await fetch(API_URL + '/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: document.getElementById('email').value,
+                    password: document.getElementById('password').value
+                })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                token = data.token;
+                document.getElementById('loginResult').innerHTML = `
+                    <div class="success">
+                        <p>✅ Login successful!</p>
+                        <p><strong>User:</strong> ${data.user.name}</p>
+                        <p><strong>Token:</strong> ${token.substring(0, 30)}...</p>
+                    </div>
+                `;
+            } else {
+                document.getElementById('loginResult').innerHTML = `
+                    <div class="error">
+                        <p>❌ Login failed: ${data.message}</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            document.getElementById('loginResult').innerHTML = `
+                <div class="error">
+                    <p>❌ Error: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    async function testContactsAPI() {
+        if (!token) {
+            alert('Please login first!');
+            return;
+        }
+
+        try {
+            console.log('🔄 Testing contacts API...');
+            
+            const response = await fetch(API_URL + '/api/contacts', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            console.log('Response status:', response.status);
+            const data = await response.json();
+            console.log('Response data:', data);
+            
+            let resultHTML = `
+                <h4>Response Status: ${response.status}</h4>
+                <h4>Raw Response:</h4>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+
+            if (response.ok) {
+                // Handle different response formats
+                let contacts = [];
+                if (Array.isArray(data)) {
+                    contacts = data;
+                } else if (data && Array.isArray(data.contacts)) {
+                    contacts = data.contacts;
+                } else if (data && data.success && Array.isArray(data.contacts)) {
+                    contacts = data.contacts;
+                }
+                
+                const vendors = contacts.filter(c => c.type === 'vendor');
+                const customers = contacts.filter(c => c.type === 'customer');
+                
+                resultHTML += `
+                    <div class="success">
+                        <h4>✅ API Success!</h4>
+                        <p><strong>Total Contacts:</strong> ${contacts.length}</p>
+                        <p><strong>Vendors:</strong> ${vendors.length}</p>
+                        <p><strong>Customers:</strong> ${customers.length}</p>
+                        
+                        <h5>Vendors Found:</h5>
+                        <ul>
+                            ${vendors.map(v => `<li>${v.name} (ID: ${v.id})</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            } else {
+                resultHTML += `
+                    <div class="error">
+                        <p>❌ API Error: ${data.message || 'Unknown error'}</p>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('contactsResult').innerHTML = resultHTML;
+            
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('contactsResult').innerHTML = `
+                <div class="error">
+                    <p>❌ Error: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    async function loadVendorsTest() {
+        if (!token) {
+            alert('Please login first!');
+            return;
+        }
+
+        try {
+            console.log('🔄 Loading vendors for dropdown...');
+            
+            const response = await fetch(API_URL + '/api/contacts', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Contacts response:', data);
+                
+                // Handle different response formats
+                let contacts = [];
+                if (Array.isArray(data)) {
+                    contacts = data;
+                } else if (data && Array.isArray(data.contacts)) {
+                    contacts = data.contacts;
+                } else if (data && data.success && Array.isArray(data.contacts)) {
+                    contacts = data.contacts;
+                }
+                
+                console.log('Contacts extracted:', contacts);
+                
+                const vendors = contacts.filter(c => c.type === 'vendor');
+                console.log('Vendors filtered:', vendors);
+
+                const select = document.getElementById('vendorSelect');
+                select.innerHTML = '<option value="">Select Vendor</option>';
+
+                if (vendors.length === 0) {
+                    select.innerHTML += '<option value="" disabled>No vendors found</option>';
+                    document.getElementById('vendorResult').innerHTML = `
+                        <div class="error">
+                            <p>⚠️ No vendors found in database!</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                vendors.forEach(v => {
+                    const option = document.createElement('option');
+                    option.value = v.id;
+                    option.textContent = v.name;
+                    select.appendChild(option);
+                });
+
+                document.getElementById('vendorResult').innerHTML = `
+                    <div class="success">
+                        <p>✅ Successfully loaded ${vendors.length} vendors!</p>
+                        <p>Dropdown populated with vendor options.</p>
+                    </div>
+                `;
+                
+                console.log('✅ Loaded', vendors.length, 'vendors');
+            } else {
+                const errorData = await response.json();
+                document.getElementById('vendorResult').innerHTML = `
+                    <div class="error">
+                        <p>❌ Failed to load vendors: ${errorData.message || 'Unknown error'}</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading vendors:', error);
+            document.getElementById('vendorResult').innerHTML = `
+                <div class="error">
+                    <p>❌ Error: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Connection Test</h1>
+    <button onclick="testAPI()">Test Database Connection</button>
+    <div id="result"></div>
+
+    <script>
+    async function testAPI() {
+        try {
+            const response = await fetch('http://127.0.0.1:5000/api/test-db');
+            const data = await response.json();
+            
+            document.getElementById('result').innerHTML = `
+                <h3>✅ SUCCESS!</h3>
+                <p><strong>Status:</strong> ${response.status}</p>
+                <p><strong>Message:</strong> ${data.message}</p>
+                <p><strong>Database:</strong> ${data.result}</p>
+            `;
+        } catch (error) {
+            document.getElementById('result').innerHTML = `
+                <h3>❌ ERROR!</h3>
+                <p>${error.message}</p>
+            `;
+        }
+    }
+    </script>
+</body>
+</html>

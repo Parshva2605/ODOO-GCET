@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Budget Data Fetching</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 15px; margin: 5px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; max-height: 300px; }
+        .test-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Budget Page Data Fetching Test</h1>
+    
+    <div class="step">
+        <h3>Step 1: Login</h3>
+        <input type="email" id="email" placeholder="Email" value="admin@shivfurniture.com">
+        <input type="password" id="password" placeholder="Password" value="admin123">
+        <button onclick="login()">Login</button>
+        <div id="loginResult"></div>
+    </div>
+    
+    <div class="test-grid">
+        <div class="step">
+            <h3>Step 2: Test Analytical Accounts API</h3>
+            <button onclick="testAnalyticalAccounts()">Test Analytical Accounts</button>
+            <div id="analyticalResult"></div>
+        </div>
+        
+        <div class="step">
+            <h3>Step 3: Test Budgets API</h3>
+            <button onclick="testBudgets()">Test Budgets (Draft)</button>
+            <button onclick="testBudgets('confirmed')">Test Budgets (Confirmed)</button>
+            <div id="budgetsResult"></div>
+        </div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 4: Test Budget Page Load Simulation</h3>
+        <button onclick="simulateBudgetPageLoad()">Simulate Budget Page Load</button>
+        <div id="simulationResult"></div>
+    </div>
+
+    <script>
+    const API_URL = 'http://127.0.0.1:5000';
+    let token = null;
+
+    async function login() {
+        try {
+            const response = await fetch(API_URL + '/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: document.getElementById('email').value,
+                    password: document.getElementById('password').value
+                })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                token = data.token;
+                document.getElementById('loginResult').innerHTML = `
+                    <div class="success">
+                        <p>✅ Login successful!</p>
+                        <p><strong>User:</strong> ${data.user.name}</p>
+                    </div>
+                `;
+            } else {
+                document.getElementById('loginResult').innerHTML = `
+                    <div class="error">
+                        <p>❌ Login failed: ${data.message}</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            document.getElementById('loginResult').innerHTML = `
+                <div class="error">
+                    <p>❌ Error: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    async function testAnalyticalAccounts() {
+        if (!token) {
+            alert('Please login first!');
+            return;
+        }
+
+        try {
+            console.log('🔄 Testing analytical accounts API...');
+            
+            const response = await fetch(API_URL + '/api/analytical-accounts', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            console.log('Analytical accounts response status:', response.status);
+            const data = await response.json();
+            console.log('Analytical accounts data:', data);
+            
+            let resultHTML = `
+                <h4>Response Status: ${response.status}</h4>
+            `;
+
+            if (response.ok) {
+                let accounts = [];
+                if (Array.isArray(data)) {
+                    accounts = data;
+                } else if (data && Array.isArray(data.accounts)) {
+                    accounts = data.accounts;
+                } else if (data && data.success && Array.isArray(data.accounts)) {
+                    accounts = data.accounts;
+                }
+                
+                resultHTML += `
+                    <div class="success">
+                        <h4>✅ Analytical Accounts API Success!</h4>
+                        <p><strong>Total Accounts:</strong> ${accounts.length}</p>
+                        <h5>Accounts Found:</h5>
+                        <ul>
+                            ${accounts.map(a => `<li>${a.code} - ${a.name} (ID: ${a.id})</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            } else {
+                resultHTML += `
+                    <div class="error">
+                        <p>❌ API Error: ${data.message || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('analyticalResult').innerHTML = resultHTML;
+            
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('analyticalResult').innerHTML = `
+                <div class="error">
+                    <p>❌ Error: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    async function testBudgets(status = 'draft') {
+        if (!token) {
+            alert('Please login first!');
+            return;
+        }
+
+        try {
+            console.log(`🔄 Testing budgets API (${status})...`);
+            
+            const response = await fetch(API_URL + `/api/budgets?status=${status}`, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            console.log('Budgets response status:', response.status);
+            const data = await response.json();
+            console.log('Budgets data:', data);
+            
+            let resultHTML = `
+                <h4>Budgets (${status}) - Status: ${response.status}</h4>
+            `;
+
+            if (response.ok) {
+                let budgets = [];
+                if (Array.isArray(data)) {
+                    budgets = data;
+                } else if (data && Array.isArray(data.budgets)) {
+                    budgets = data.budgets;
+                } else if (data && data.success && Array.isArray(data.budgets)) {
+                    budgets = data.budgets;
+                }
+                
+                resultHTML += `
+                    <div class="success">
+                        <h4>✅ Budgets API Success!</h4>
+                        <p><strong>Total Budgets (${status}):</strong> ${budgets.length}</p>
+                        <h5>Budgets Found:</h5>
+                        <ul>
+                            ${budgets.map(b => `<li>${b.name} - ${b.status} (ID: ${b.id})</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            } else {
+                resultHTML += `
+                    <div class="error">
+                        <p>❌ API Error: ${data.message || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('budgetsResult').innerHTML = resultHTML;
+            
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('budgetsResult').innerHTML = `
+                <div class="error">
+                    <p>❌ Error: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    async function simulateBudgetPageLoad() {
+        if (!token) {
+            alert('Please login first!');
+            return;
+        }
+
+        let results = [];
+        
+        try {
+            // Test 1: Load analytical accounts (required for budget form)
+            console.log('🔄 Step 1: Loading analytical accounts...');
+            const analyticalResponse = await fetch(API_URL + '/api/analytical-accounts', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            
+            if (analyticalResponse.ok) {
+                const analyticalData = await analyticalResponse.json();
+                let accounts = analyticalData.success ? analyticalData.accounts : analyticalData;
+                results.push(`✅ Analytical Accounts: ${accounts.length} loaded`);
+            } else {
+                results.push(`❌ Analytical Accounts: Failed (${analyticalResponse.status})`);
+            }
+
+            // Test 2: Load draft budgets (default tab)
+            console.log('🔄 Step 2: Loading draft budgets...');
+            const budgetsResponse = await fetch(API_URL + '/api/budgets?status=draft', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            
+            if (budgetsResponse.ok) {
+                const budgetsData = await budgetsResponse.json();
+                let budgets = budgetsData.success ? budgetsData.budgets : budgetsData;
+                results.push(`✅ Draft Budgets: ${budgets.length} loaded`);
+            } else {
+                results.push(`❌ Draft Budgets: Failed (${budgetsResponse.status})`);
+            }
+
+            // Test 3: Load confirmed budgets
+            console.log('🔄 Step 3: Loading confirmed budgets...');
+            const confirmedResponse = await fetch(API_URL + '/api/budgets?status=confirmed', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            
+            if (confirmedResponse.ok) {
+                const confirmedData = await confirmedResponse.json();
+                let confirmed = confirmedData.success ? confirmedData.budgets : confirmedData;
+                results.push(`✅ Confirmed Budgets: ${confirmed.length} loaded`);
+            } else {
+                results.push(`❌ Confirmed Budgets: Failed (${confirmedResponse.status})`);
+            }
+
+            document.getElementById('simulationResult').innerHTML = `
+                <div class="success">
+                    <h4>✅ Budget Page Load Simulation Complete!</h4>
+                    <ul>
+                        ${results.map(r => `<li>${r}</li>`).join('')}
+                    </ul>
+                    <p><strong>Conclusion:</strong> ${results.filter(r => r.includes('✅')).length}/${results.length} API calls successful</p>
+                </div>
+            `;
+            
+        } catch (error) {
+            console.error('Error in simulation:', error);
+            document.getElementById('simulationResult').innerHTML = `
+                <div class="error">
+                    <p>❌ Simulation Error: ${error.message}</p>
+                    <p>Results so far:</p>
+                    <ul>
+                        ${results.map(r => `<li>${r}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+    }
+    </script>
+</body>
+</html>

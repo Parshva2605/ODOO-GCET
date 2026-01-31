@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test User 8 Budget Data</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 15px; margin: 5px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; max-height: 300px; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test User 8 Budget Data (a@gmail.com)</h1>
+    
+    <div class="step">
+        <h3>Step 1: Login as User 8</h3>
+        <input type="email" id="email" placeholder="Email" value="a@gmail.com">
+        <input type="password" id="password" placeholder="Password" value="123456">
+        <button onclick="login()">Login</button>
+        <div id="loginResult"></div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 2: Test Analytical Accounts</h3>
+        <button onclick="testAnalyticalAccounts()">Test Analytical Accounts</button>
+        <div id="analyticalResult"></div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 3: Test Budgets</h3>
+        <button onclick="testBudgets('draft')">Test Draft Budgets</button>
+        <button onclick="testBudgets('confirmed')">Test Confirmed Budgets</button>
+        <div id="budgetsResult"></div>
+    </div>
+
+    <script>
+    const API_URL = 'http://127.0.0.1:5000';
+    let token = null;
+
+    async function login() {
+        try {
+            const response = await fetch(API_URL + '/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: document.getElementById('email').value,
+                    password: document.getElementById('password').value
+                })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                token = data.token;
+                document.getElementById('loginResult').innerHTML = `
+                    <div class="success">
+                        <p>✅ Login successful!</p>
+                        <p><strong>User:</strong> ${data.user.name}</p>
+                        <p><strong>Email:</strong> ${data.user.email}</p>
+                        <p><strong>User ID:</strong> ${data.user.id}</p>
+                    </div>
+                `;
+            } else {
+                document.getElementById('loginResult').innerHTML = `
+                    <div class="error">
+                        <p>❌ Login failed: ${data.message}</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            document.getElementById('loginResult').innerHTML = `
+                <div class="error">
+                    <p>❌ Error: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    async function testAnalyticalAccounts() {
+        if (!token) {
+            alert('Please login first!');
+            return;
+        }
+
+        try {
+            const response = await fetch(API_URL + '/api/analytical-accounts', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            const data = await response.json();
+            
+            let resultHTML = `<h4>Response Status: ${response.status}</h4>`;
+
+            if (response.ok) {
+                let accounts = data.success ? data.accounts : data;
+                
+                resultHTML += `
+                    <div class="success">
+                        <h4>✅ Analytical Accounts Success!</h4>
+                        <p><strong>Total Accounts:</strong> ${accounts.length}</p>
+                        <h5>Accounts:</h5>
+                        <ul>
+                            ${accounts.map(a => `<li>${a.code} - ${a.name} (ID: ${a.id})</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            } else {
+                resultHTML += `
+                    <div class="error">
+                        <p>❌ API Error: ${data.message || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('analyticalResult').innerHTML = resultHTML;
+            
+        } catch (error) {
+            document.getElementById('analyticalResult').innerHTML = `
+                <div class="error">
+                    <p>❌ Error: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    async function testBudgets(status) {
+        if (!token) {
+            alert('Please login first!');
+            return;
+        }
+
+        try {
+            const response = await fetch(API_URL + `/api/budgets?status=${status}`, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            const data = await response.json();
+            
+            let resultHTML = `<h4>Budgets (${status}) - Status: ${response.status}</h4>`;
+
+            if (response.ok) {
+                let budgets = Array.isArray(data) ? data : (data.budgets || []);
+                
+                resultHTML += `
+                    <div class="success">
+                        <h4>✅ Budgets API Success!</h4>
+                        <p><strong>Total Budgets (${status}):</strong> ${budgets.length}</p>
+                        <h5>Budgets:</h5>
+                        <ul>
+                            ${budgets.map(b => `<li>${b.name} - ${b.status} (ID: ${b.id})</li>`).join('')}
+                        </ul>
+                        <h5>Raw Response:</h5>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            } else {
+                resultHTML += `
+                    <div class="error">
+                        <p>❌ API Error: ${data.message || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('budgetsResult').innerHTML = resultHTML;
+            
+        } catch (error) {
+            document.getElementById('budgetsResult').innerHTML = `
+                <div class="error">
+                    <p>❌ Error: ${error.message}</p>
+                </div>
+            `;
+        }
+    }
+    </script>
+</body>
+</html>

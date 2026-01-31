@@ -30,9 +30,14 @@ def initialize_pool():
     logger.info(f"📊 User: {Config.DB_USER}")
     
     try:
+        # Close existing pool if it exists
+        if connection_pool:
+            connection_pool.closeall()
+            logger.info("🔄 Closed existing connection pool")
+        
         connection_pool = psycopg2.pool.SimpleConnectionPool(
             1,  # Minimum connections
-            20,  # Maximum connections
+            10,  # Maximum connections (reduced from 20)
             host=Config.DB_HOST,
             port=Config.DB_PORT,
             database=Config.DB_NAME,
@@ -71,7 +76,10 @@ def get_connection():
             raise Exception("Connection pool failed to initialize")
         
         connection = connection_pool.getconn()
-        logger.info("📊 Database connection acquired from pool")
+        if connection is None:
+            raise Exception("Failed to get connection from pool")
+            
+        logger.debug("📊 Database connection acquired from pool")
         return connection
         
     except Exception as e:
@@ -84,9 +92,19 @@ def release_connection(connection):
     try:
         if connection_pool and connection:
             connection_pool.putconn(connection)
-            logger.info("✅ Database connection released to pool")
+            logger.debug("✅ Database connection released to pool")
     except Exception as e:
         logger.error(f"❌ Error releasing connection: {str(e)}")
+
+
+def close_connection(connection):
+    """Properly close/release a connection back to the pool"""
+    try:
+        if connection_pool and connection:
+            connection_pool.putconn(connection)
+            logger.debug("✅ Database connection returned to pool")
+    except Exception as e:
+        logger.error(f"❌ Error returning connection to pool: {str(e)}")
 
 
 def execute_query(query, params=None):

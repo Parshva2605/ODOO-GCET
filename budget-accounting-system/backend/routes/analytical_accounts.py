@@ -7,7 +7,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.db import execute_query, execute_insert, execute_update
-from routes.auth import verify_token
+from utils.auth import token_required
 import logging
 
 # ===== BLUEPRINT SETUP =====
@@ -15,37 +15,19 @@ analytical_accounts_bp = Blueprint('analytical_accounts', __name__)
 logger = logging.getLogger(__name__)
 
 # ===== HELPER FUNCTIONS =====
-
-def get_user_from_token():
-    """
-    Extract user_id from JWT token in Authorization header
-    Returns: user_id if valid, None if invalid
-    """
-    try:
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return None
-        
-        token = auth_header.split(' ')[1]
-        payload = verify_token(token)
-        
-        return payload['user_id'] if payload else None
-    except Exception as e:
-        logger.error(f"❌ Error getting user from token: {str(e)}")
-        return None
+# (No helper functions needed - using @token_required decorator)
 
 # ===== ANALYTICAL ACCOUNTS ENDPOINTS =====
 
 @analytical_accounts_bp.route('/analytical-accounts', methods=['GET'])
-def get_analytical_accounts():
+@token_required
+def get_analytical_accounts(current_user):
     """
     Get all analytical accounts for logged-in user
     Returns: JSON with accounts array
     """
     try:
-        user_id = get_user_from_token()
-        if not user_id:
-            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        user_id = current_user['id']
         
         query = """
             SELECT id, name, code, created_at
@@ -67,16 +49,15 @@ def get_analytical_accounts():
         return jsonify({'success': False, 'message': 'Server error'}), 500
 
 @analytical_accounts_bp.route('/analytical-accounts', methods=['POST'])
-def create_analytical_account():
+@token_required
+def create_analytical_account(current_user):
     """
     Create new analytical account
     Expected JSON: name, code
     Returns: JSON with success status and account_id
     """
     try:
-        user_id = get_user_from_token()
-        if not user_id:
-            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        user_id = current_user['id']
         
         data = request.get_json()
         
@@ -132,7 +113,8 @@ def create_analytical_account():
         return jsonify({'success': False, 'message': 'Server error', 'error': str(e)}), 500
 
 @analytical_accounts_bp.route('/analytical-accounts/<int:account_id>', methods=['PUT'])
-def update_analytical_account(account_id):
+@token_required
+def update_analytical_account(current_user, account_id):
     """
     Update existing analytical account
     Parameters: account_id in URL
@@ -140,9 +122,7 @@ def update_analytical_account(account_id):
     Returns: JSON with success status
     """
     try:
-        user_id = get_user_from_token()
-        if not user_id:
-            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        user_id = current_user['id']
         
         # Check if account belongs to user
         check_query = "SELECT id FROM analytical_accounts WHERE id = %s AND user_id = %s"
@@ -194,16 +174,15 @@ def update_analytical_account(account_id):
         return jsonify({'success': False, 'message': 'Server error'}), 500
 
 @analytical_accounts_bp.route('/analytical-accounts/<int:account_id>', methods=['DELETE'])
-def delete_analytical_account(account_id):
+@token_required
+def delete_analytical_account(current_user, account_id):
     """
     Delete analytical account
     Parameters: account_id in URL
     Returns: JSON with success status
     """
     try:
-        user_id = get_user_from_token()
-        if not user_id:
-            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        user_id = current_user['id']
         
         # Check if account belongs to user and get details for logging
         check_query = "SELECT name, code FROM analytical_accounts WHERE id = %s AND user_id = %s"

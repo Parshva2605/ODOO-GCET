@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from config import Config
 from utils.auth import token_required
-from utils.db import get_connection
+from utils.db import get_connection, release_connection, execute_query, execute_update, execute_insert
 import logging
 
 # ===== SETUP LOGGING =====
@@ -80,9 +80,6 @@ def general_ledger_report(current_user):
         start_date = data.get('start_date')
         end_date = data.get('end_date')
         
-        conn = get_connection()
-        cursor = conn.cursor()
-        
         # Build query
         query = """
         SELECT 
@@ -117,16 +114,7 @@ def general_ledger_report(current_user):
         
         query += " ORDER BY ca.code, je.date, je.id"
         
-        cursor.execute(query, tuple(params))
-        
-        # Fetch results
-        columns = [desc[0] for desc in cursor.description]
-        results = []
-        for row in cursor.fetchall():
-            results.append(dict(zip(columns, row)))
-        
-        cursor.close()
-        conn.close()
+        results = execute_query(query, tuple(params))
         
         logger.info(f'✅ General Ledger generated: {len(results)} rows')
         return jsonify(results), 200
@@ -146,9 +134,6 @@ def trial_balance_report(current_user):
         data = request.get_json()
         
         as_of_date = data.get('as_of_date')
-        
-        conn = get_connection()
-        cursor = conn.cursor()
         
         query = """
         SELECT 
@@ -174,15 +159,7 @@ def trial_balance_report(current_user):
         query += " GROUP BY ca.id, ca.code, ca.name, ca.type"
         query += " ORDER BY ca.code"
         
-        cursor.execute(query, tuple(params))
-        
-        columns = [desc[0] for desc in cursor.description]
-        results = []
-        for row in cursor.fetchall():
-            results.append(dict(zip(columns, row)))
-        
-        cursor.close()
-        conn.close()
+        results = execute_query(query, tuple(params))
         
         logger.info(f'✅ Trial Balance generated: {len(results)} accounts')
         return jsonify(results), 200
@@ -204,9 +181,6 @@ def analytical_report(current_user):
         analytical_id = data.get('analytical_id')
         start_date = data.get('start_date')
         end_date = data.get('end_date')
-        
-        conn = get_connection()
-        cursor = conn.cursor()
         
         query = """
         SELECT 
@@ -240,15 +214,7 @@ def analytical_report(current_user):
         query += " AND (je.state = 'posted' OR je.state IS NULL)"
         query += " ORDER BY aa.name, je.date"
         
-        cursor.execute(query, tuple(params))
-        
-        columns = [desc[0] for desc in cursor.description]
-        results = []
-        for row in cursor.fetchall():
-            results.append(dict(zip(columns, row)))
-        
-        cursor.close()
-        conn.close()
+        results = execute_query(query, tuple(params))
         
         logger.info(f'✅ Analytical Report generated: {len(results)} rows')
         return jsonify(results), 200
@@ -260,6 +226,148 @@ def analytical_report(current_user):
         return jsonify({'error': str(e)}), 500
 
 logger.info("✅ Reports API routes registered")
+
+# ============================================
+# PURCHASE ORDERS API
+# ============================================
+
+@app.route('/api/purchase-orders', methods=['GET'])
+@token_required
+def get_purchase_orders(current_user):
+    """Get all purchase orders for current user"""
+    try:
+        user_id = current_user['id']
+        
+        query = """
+        SELECT 
+            po.id, po.reference, po.date, po.vendor_id, po.state, po.total,
+            c.name as vendor_name
+        FROM purchase_orders po
+        LEFT JOIN contacts c ON po.vendor_id = c.id
+        WHERE po.user_id = %s
+        ORDER BY po.date DESC, po.id DESC
+        """
+        
+        results = execute_query(query, (user_id,))
+        
+        logger.info(f'✅ Retrieved {len(results)} purchase orders')
+        return jsonify(results), 200
+        
+    except Exception as e:
+        logger.error(f'❌ Error fetching purchase orders: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/purchase-orders', methods=['POST'])
+@token_required
+def create_purchase_order(current_user):
+    """Create new purchase order"""
+    connection = None
+    cursor = None
+    try:
+        user_id = current_user['id']
+        data = request.get_json()
+        
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        # Insert purchase order
+        query = """
+        INSERT INTO purchase_orders (user_id, reference, date, vendor_id, state, total)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """
+        
+        cursor.execute(query, (
+            user_id,
+            data['reference'],
+            data['date'],
+            data['vendor_id'],
+            data.get('state', 'draft'),
+            data.get('total', 0)
+        ))
+        
+        po_id = cursor.fetchone()[0]
+        
+        # Insert purchase order lines
+        if 'lines' in data:
+            for line in data['lines']:
+                line_query = """
+                INSERT INTO purchase_order_lines 
+                (purchase_order_id, product_id, description, quantity, price, subtotal, analytical_account_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(line_query, (
+                    po_id,
+                    line.get('product_id'),
+                    line.get('description'),
+                    line.get('quantity', 1),
+                    line.get('price', 0),
+                    line.get('subtotal', 0),
+                    line.get('analytical_account_id')
+                ))
+        
+        connection.commit()
+        
+        logger.info(f'✅ Purchase order created: {po_id}')
+        return jsonify({'id': po_id, 'message': 'Purchase order created'}), 201
+        
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        logger.error(f'❌ Error creating purchase order: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            release_connection(connection)
+
+@app.route('/api/purchase-orders/<int:po_id>', methods=['GET'])
+@token_required
+def get_purchase_order(current_user, po_id):
+    """Get single purchase order with lines"""
+    try:
+        user_id = current_user['id']
+        
+        # Get PO header
+        query = """
+        SELECT po.*, c.name as vendor_name
+        FROM purchase_orders po
+        LEFT JOIN contacts c ON po.vendor_id = c.id
+        WHERE po.id = %s AND po.user_id = %s
+        """
+        
+        results = execute_query(query, (po_id, user_id))
+        
+        if not results:
+            return jsonify({'error': 'Purchase order not found'}), 404
+            
+        po = results[0]
+        
+        # Get PO lines
+        lines_query = """
+        SELECT pol.*, p.name as product_name, aa.name as analytical_name
+        FROM purchase_order_lines pol
+        LEFT JOIN products p ON pol.product_id = p.id
+        LEFT JOIN analytical_accounts aa ON pol.analytical_account_id = aa.id
+        WHERE pol.purchase_order_id = %s
+        """
+        
+        po['lines'] = execute_query(lines_query, (po_id,))
+        
+        return jsonify(po), 200
+        
+    except Exception as e:
+        logger.error(f'❌ Error fetching purchase order: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+        
+    except Exception as e:
+        logger.error(f'❌ Error fetching purchase order: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+logger.info("✅ Purchase Orders API routes registered")
 
 # ===== API ROUTES =====
 

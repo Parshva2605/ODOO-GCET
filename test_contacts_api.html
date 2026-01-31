@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Contacts API</title>
+</head>
+<body>
+    <h1>Test Contacts API</h1>
+    <div>
+        <h3>Step 1: Login</h3>
+        <input type="email" id="email" placeholder="Email" value="admin@shivfurniture.com">
+        <input type="password" id="password" placeholder="Password" value="admin123">
+        <button onclick="login()">Login</button>
+        <div id="loginResult"></div>
+    </div>
+    
+    <div>
+        <h3>Step 2: Test Contacts API</h3>
+        <button onclick="testContacts()">Test Contacts</button>
+        <div id="contactsResult"></div>
+    </div>
+
+    <script>
+    const API_URL = 'http://127.0.0.1:5000';
+    let token = null;
+
+    async function login() {
+        try {
+            const response = await fetch(API_URL + '/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: document.getElementById('email').value,
+                    password: document.getElementById('password').value
+                })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                token = data.token;
+                document.getElementById('loginResult').innerHTML = `
+                    <p style="color: green;">✅ Login successful!</p>
+                    <p>Token: ${token.substring(0, 20)}...</p>
+                `;
+            } else {
+                document.getElementById('loginResult').innerHTML = `
+                    <p style="color: red;">❌ Login failed: ${data.message}</p>
+                `;
+            }
+        } catch (error) {
+            document.getElementById('loginResult').innerHTML = `
+                <p style="color: red;">❌ Error: ${error.message}</p>
+            `;
+        }
+    }
+
+    async function testContacts() {
+        if (!token) {
+            alert('Please login first!');
+            return;
+        }
+
+        try {
+            const response = await fetch(API_URL + '/api/contacts', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            const data = await response.json();
+            
+            document.getElementById('contactsResult').innerHTML = `
+                <h4>Response Status: ${response.status}</h4>
+                <h4>Response Data:</h4>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+
+            if (data.success && data.contacts) {
+                const vendors = data.contacts.filter(c => c.type === 'vendor');
+                document.getElementById('contactsResult').innerHTML += `
+                    <h4>Vendors Found: ${vendors.length}</h4>
+                    <ul>
+                        ${vendors.map(v => `<li>${v.name} (ID: ${v.id})</li>`).join('')}
+                    </ul>
+                `;
+            }
+        } catch (error) {
+            document.getElementById('contactsResult').innerHTML = `
+                <p style="color: red;">❌ Error: ${error.message}</p>
+            `;
+        }
+    }
+    </script>
+</body>
+</html>

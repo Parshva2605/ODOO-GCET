@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Sidebar User Info</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 15px; margin: 5px; }
+        iframe { width: 100%; height: 400px; border: 1px solid #ccc; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Sidebar User Info Display</h1>
+    
+    <div class="test-section">
+        <h3>Step 1: Login First</h3>
+        <p>Before testing, make sure you're logged in:</p>
+        <button onclick="window.open('http://127.0.0.1:5000/login.html', '_blank')">Open Login Page</button>
+        <p><strong>Login with:</strong> a@gmail.com / 123456</p>
+    </div>
+    
+    <div class="test-section">
+        <h3>Step 2: Test Purchase Orders Page</h3>
+        <p>Check if user name and email appear in sidebar:</p>
+        <button onclick="testPage('purchase-orders')">Test Purchase Orders Sidebar</button>
+        <iframe id="poFrame" style="display:none;"></iframe>
+    </div>
+    
+    <div class="test-section">
+        <h3>Step 3: Test Reports Page</h3>
+        <p>Check if user name and email appear in sidebar:</p>
+        <button onclick="testPage('reports')">Test Reports Sidebar</button>
+        <iframe id="reportsFrame" style="display:none;"></iframe>
+    </div>
+    
+    <div class="test-section">
+        <h3>Step 4: Compare with Working Page</h3>
+        <p>Compare with dashboard (known working):</p>
+        <button onclick="testPage('dashboard')">Test Dashboard Sidebar</button>
+        <iframe id="dashboardFrame" style="display:none;"></iframe>
+    </div>
+
+    <script>
+    function testPage(pageName) {
+        const frameId = pageName === 'purchase-orders' ? 'poFrame' : 
+                       pageName === 'reports' ? 'reportsFrame' : 'dashboardFrame';
+        
+        const frame = document.getElementById(frameId);
+        frame.style.display = 'block';
+        frame.src = `http://127.0.0.1:5000/${pageName}.html`;
+        
+        // Instructions
+        alert(`Loading ${pageName}.html...\n\nLook for:\n✅ User name should show "a" (not "Loading...")\n✅ User email should show "a@gmail.com"\n\nIf you see "Loading..." or empty fields, there's still an issue.`);
+    }
+    </script>
+</body>
+</html>
