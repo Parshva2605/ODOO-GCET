@@ -28,6 +28,10 @@ from routes.stats import stats_bp
 app.register_blueprint(stats_bp, url_prefix='/api')
 logger.info("✅ Stats routes registered")
 
+from routes.contacts import contacts_bp
+app.register_blueprint(contacts_bp, url_prefix='/api')
+logger.info("✅ Contacts routes registered")
+
 # ===== ROUTES =====
 
 @app.route('/')
