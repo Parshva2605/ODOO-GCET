@@ -32,6 +32,10 @@ from routes.contacts import contacts_bp
 app.register_blueprint(contacts_bp, url_prefix='/api')
 logger.info("✅ Contacts routes registered")
 
+from routes.products import products_bp
+app.register_blueprint(products_bp, url_prefix='/api')
+logger.info("✅ Products routes registered")
+
 # ===== ROUTES =====
 
 @app.route('/')
