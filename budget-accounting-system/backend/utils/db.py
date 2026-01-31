@@ -159,6 +159,49 @@ def execute_update(query, params=None):
         if connection:
             release_connection(connection)
 
+def execute_insert(query, params=None):
+    """Execute INSERT queries with RETURNING clause and commit"""
+    connection = None
+    cursor = None
+    
+    try:
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        logger.info(f"➕ Executing insert: {query[:100]}...")
+        
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+        
+        # COMMIT the transaction
+        connection.commit()
+        logger.info("✅ Insert committed to database")
+        
+        # Get the returned row
+        if cursor.description:
+            columns = [desc[0] for desc in cursor.description]
+            row = cursor.fetchone()
+            if row:
+                result = dict(zip(columns, row))
+                logger.info(f"✅ Insert successful. Returned: {result}")
+                return [result]  # Return as list for consistency
+        
+        return []
+        
+    except Exception as e:
+        if connection:
+            connection.rollback()
+            logger.error("❌ Transaction rolled back")
+        logger.error(f"❌ Error executing insert: {str(e)}")
+        raise
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            release_connection(connection)
+
 
 def test_connection():
     """Test database connection and return PostgreSQL version"""

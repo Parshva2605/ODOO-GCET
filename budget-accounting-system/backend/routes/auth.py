@@ -11,7 +11,7 @@ import re
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import Config
-from utils.db import execute_query, execute_update
+from utils.db import execute_query, execute_update, execute_insert
 import logging
 
 # ===== BLUEPRINT SETUP =====
@@ -91,35 +91,23 @@ def validate_email(email):
 
 @auth_bp.route('/signup', methods=['POST'])
 def signup():
-    """
-    Register new user account
-    
-    Expected JSON:
-        - name (required)
-        - email (required)
-        - password (required)
-        - company_name (optional)
-        - gstin (optional)
-    
-    Returns:
-        JSON response with success/error message
-    """
+    """Register new user account"""
     try:
-        # Get JSON data from request
+        # Get request data
         data = request.get_json()
         
-        if not data:
-            return jsonify({
-                'success': False,
-                'message': 'No data provided'
-            }), 400
+        logger.info(f"📝 Signup attempt - Data received: {data}")
         
-        # Extract required fields
-        name = data.get('name', '').strip()
-        email = data.get('email', '').strip().lower()
-        password = data.get('password', '')
-        company_name = data.get('company_name', '').strip()
-        gstin = data.get('gstin', '').strip()
+        # Get and validate required fields
+        name = data.get('name', '').strip() if data.get('name') else ''
+        email = data.get('email', '').strip() if data.get('email') else ''
+        password = data.get('password', '') if data.get('password') else ''
+        
+        # Optional fields
+        company_name = data.get('company_name', '').strip() if data.get('company_name') else None
+        gstin = data.get('gstin', '').strip() if data.get('gstin') else None
+        
+        logger.info(f"📝 Name: {name}, Email: {email}, Company: {company_name}")
         
         # Validate required fields
         if not name:
@@ -127,65 +115,60 @@ def signup():
                 'success': False,
                 'message': 'Name is required'
             }), 400
-            
+        
         if not email:
             return jsonify({
                 'success': False,
                 'message': 'Email is required'
             }), 400
-            
+        
+        if '@' not in email:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid email format'
+            }), 400
+        
         if not password:
             return jsonify({
                 'success': False,
                 'message': 'Password is required'
             }), 400
         
-        # Validate email format
-        if not validate_email(email):
-            return jsonify({
-                'success': False,
-                'message': 'Invalid email format'
-            }), 400
-        
-        # Validate password length
         if len(password) < 6:
             return jsonify({
                 'success': False,
-                'message': 'Password must be at least 6 characters long'
+                'message': 'Password must be at least 6 characters'
             }), 400
         
         # Check if email already exists
         check_query = "SELECT id FROM users WHERE email = %s"
         existing_user = execute_query(check_query, (email,))
         
-        if existing_user:
-            logger.info(f"❌ Signup attempt with existing email: {email}")
+        if existing_user and len(existing_user) > 0:
+            logger.warning(f"⚠️ Email already exists: {email}")
             return jsonify({
                 'success': False,
                 'message': 'Email already registered'
             }), 400
         
         # Hash password
+        logger.info("🔐 Hashing password...")
         hashed_password = hash_password(password)
         
-        # Insert new user - use execute_update which commits the transaction
+        # Insert user into database
         insert_query = """
             INSERT INTO users (name, email, password_hash, company_name, gstin, role) 
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s) 
+            RETURNING id
         """
         params = (name, email, hashed_password, company_name, gstin, 'portal_user')
         
-        # Use execute_update for INSERT
-        from utils.db import execute_update
-        execute_update(insert_query, params)
+        logger.info("💾 Inserting user into database...")
+        result = execute_insert(insert_query, params)
         
-        # Get the newly created user
-        user_query = "SELECT id FROM users WHERE email = %s"
-        result = execute_query(user_query, (email,))
-        user_id = result[0]['id']
-        
-        if result:
-            logger.info(f"✅ New user registered successfully: {email} (ID: {user_id})")
+        if result and len(result) > 0:
+            user_id = result[0]['id']
+            logger.info(f"✅ User created successfully with ID: {user_id}")
             
             return jsonify({
                 'success': True,
@@ -193,17 +176,15 @@ def signup():
                 'user_id': user_id
             }), 201
         else:
-            logger.error(f"❌ Failed to create user: {email}")
-            return jsonify({
-                'success': False,
-                'message': 'Failed to create account'
-            }), 500
-            
+            raise Exception("Failed to retrieve user ID after insert")
+        
     except Exception as e:
         logger.error(f"❌ Signup error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({
             'success': False,
-            'message': 'Internal server error',
+            'message': 'Server error during signup',
             'error': str(e)
         }), 500
 

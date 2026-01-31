@@ -24,6 +24,10 @@ from routes.auth import auth_bp
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
 logger.info("✅ Auth routes registered")
 
+from routes.stats import stats_bp
+app.register_blueprint(stats_bp, url_prefix='/api')
+logger.info("✅ Stats routes registered")
+
 # ===== ROUTES =====
 
 @app.route('/')
