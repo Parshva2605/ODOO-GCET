@@ -44,6 +44,10 @@ from routes.auto_analytical_models import auto_analytical_models_bp
 app.register_blueprint(auto_analytical_models_bp, url_prefix='/api')
 logger.info("✅ Auto Analytical Models routes registered")
 
+from routes.budgets import budgets_bp
+app.register_blueprint(budgets_bp, url_prefix='/api')
+logger.info("✅ Budgets routes registered")
+
 # ===== ROUTES =====
 
 @app.route('/')

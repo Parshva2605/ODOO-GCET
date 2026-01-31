@@ -202,6 +202,133 @@ function loadRecentActivity() {
     console.log('📝 [DASHBOARD.JS:110] Recent activity placeholder loaded');
 }
 
+// ============================================
+// LOAD BUDGET OVERVIEW
+// ============================================
+async function loadBudgetOverview() {
+    const token = localStorage.getItem('token');
+    
+    console.log('📊 Loading budget overview...');
+    
+    try {
+        const response = await fetch(API_BASE_URL + '/budgets', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load budgets');
+        }
+        
+        const budgets = await response.json();
+        
+        // Filter active budgets (draft or confirmed, not archived/revised)
+        const activeBudgets = budgets.filter(b => 
+            b.status === 'draft' || b.status === 'confirm'
+        );
+        
+        // Calculate total planned amount
+        const totalPlanned = activeBudgets.reduce((sum, budget) => 
+            sum + (parseFloat(budget.total_planned) || 0), 0
+        );
+        
+        // Update statistics
+        document.getElementById('activeBudgetsCount').textContent = activeBudgets.length;
+        document.getElementById('totalPlannedAmount').textContent = '₹' + formatNumber(totalPlanned);
+        
+        // Display recent budgets (last 5)
+        displayRecentBudgets(budgets.slice(0, 5));
+        
+        console.log('✅ Budget overview loaded:', {
+            total: budgets.length,
+            active: activeBudgets.length,
+            totalPlanned: totalPlanned
+        });
+        
+    } catch (error) {
+        console.error('❌ Error loading budget overview:', error);
+        document.getElementById('recentBudgetsList').innerHTML = `
+            <div class="text-center text-danger py-3">
+                <i class="fas fa-exclamation-triangle"></i> Failed to load budgets
+            </div>
+        `;
+    }
+}
+
+// ============================================
+// DISPLAY RECENT BUDGETS
+// ============================================
+function displayRecentBudgets(budgets) {
+    const container = document.getElementById('recentBudgetsList');
+    
+    if (!budgets || budgets.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-3">
+                <i class="fas fa-inbox"></i> No budgets found
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = budgets.map(budget => {
+        const statusColor = getStatusColor(budget.status);
+        const percentage = budget.total_planned > 0 
+            ? ((budget.total_achieved / budget.total_planned) * 100).toFixed(0)
+            : 0;
+        
+        return `
+            <a href="budgets.html" class="list-group-item list-group-item-action">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${escapeHtml(budget.name)}</strong>
+                        <br>
+                        <small class="text-muted">
+                            ${formatDate(budget.start_date)} - ${formatDate(budget.end_date)}
+                        </small>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-${statusColor} mb-1">${budget.status}</span>
+                        <br>
+                        <small class="text-muted">${percentage}% achieved</small>
+                    </div>
+                </div>
+            </a>
+        `;
+    }).join('');
+}
+
+// Helper: Get status badge color
+function getStatusColor(status) {
+    const colors = {
+        'draft': 'secondary',
+        'confirm': 'success',
+        'revised': 'warning',
+        'archived': 'dark'
+    };
+    return colors[status] || 'secondary';
+}
+
+// Helper: Format numbers with Indian locale
+function formatNumber(num) {
+    return parseFloat(num || 0).toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
+// Helper: Format dates
+function formatDate(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN');
+}
+
+// Helper: Escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // ===== LOGOUT FUNCTIONALITY =====
 
 /**
@@ -264,6 +391,9 @@ function initDashboard() {
     
     // Load recent activity
     loadRecentActivity();
+    
+    // Load budget overview
+    loadBudgetOverview();
     
     // Attach event handlers
     const logoutBtn = document.getElementById('logoutBtn');

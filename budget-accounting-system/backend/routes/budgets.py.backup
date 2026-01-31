@@ -1,0 +1,319 @@
+from flask import Blueprint, request, jsonify
+from utils.db import execute_query, execute_insert, execute_update
+from routes.auth import verify_token
+import logging
+
+logger = logging.getLogger(__name__)
+
+budgets_bp = Blueprint('budgets', __name__)
+
+def get_user_from_token():
+    """Extract user_id from JWT token in Authorization header"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return None
+        
+        token = auth_header.split(' ')[1]
+        payload = verify_token(token)
+        
+        return payload['user_id'] if payload else None
+    except Exception as e:
+        logger.error(f"❌ Error getting user from token: {str(e)}")
+        return None
+
+@budgets_bp.route('/budgets', methods=['GET'])
+def get_budgets():
+    """Get all budgets for the current user"""
+    try:
+        user_id = get_user_from_token()
+        if not user_id:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        
+        # Query budgets with aggregated totals
+        query = """
+            SELECT 
+                b.id,
+                b.name,
+                b.start_date,
+                b.end_date,
+                b.status,
+                b.revision_of,
+                b.created_at,
+                COALESCE(SUM(bl.planned_amount), 0) as total_planned,
+                COALESCE(SUM(bl.achieved_amount), 0) as total_achieved,
+                COUNT(bl.id) as line_count
+            FROM budgets b
+            LEFT JOIN budget_lines bl ON b.id = bl.budget_id
+            WHERE b.user_id = %s
+            GROUP BY b.id, b.name, b.start_date, b.end_date, b.status, b.revision_of, b.created_at
+            ORDER BY b.created_at DESC
+        """
+        
+        budgets = execute_query(query, (user_id,))
+        
+        logger.info(f"📊 Retrieved {len(budgets)} budgets for user {user_id}")
+        
+        return jsonify({'success': True, 'budgets': budgets}), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting budgets: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error'}), 500
+
+@budgets_bp.route('/budgets/<int:budget_id>', methods=['GET'])
+def get_budget(budget_id):
+    """Get single budget with lines"""
+    try:
+        user_id = get_user_from_token()
+        if not user_id:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        
+        # Get budget header
+        budget_query = """
+            SELECT id, name, start_date, end_date, status, revision_of, created_at, updated_at
+            FROM budgets
+            WHERE id = %s AND user_id = %s
+        """
+        budget_result = execute_query(budget_query, (budget_id, user_id))
+        
+        if not budget_result:
+            return jsonify({'success': False, 'message': 'Budget not found'}), 404
+        
+        budget = budget_result[0]
+        
+        # Get budget lines with analytical account details
+        lines_query = """
+            SELECT 
+                bl.id, 
+                bl.analytical_account_id, 
+                bl.type, 
+                bl.planned_amount, 
+                bl.achieved_amount,
+                aa.code as analytical_code, 
+                aa.name as analytical_name
+            FROM budget_lines bl
+            JOIN analytical_accounts aa ON bl.analytical_account_id = aa.id
+            WHERE bl.budget_id = %s
+            ORDER BY aa.code
+        """
+        lines = execute_query(lines_query, (budget_id,))
+        
+        # Add calculated fields to lines
+        for line in lines:
+            planned = float(line['planned_amount'])
+            achieved = float(line.get('achieved_amount', 0))
+            
+            if planned > 0:
+                line['achieved_percentage'] = round((achieved / planned) * 100, 2)
+            else:
+                line['achieved_percentage'] = 0
+            
+            line['amount_to_achieve'] = planned - achieved
+        
+        budget['lines'] = lines
+        
+        logger.info(f"📋 Retrieved budget {budget_id} with {len(lines)} lines")
+        
+        return jsonify({'success': True, 'budget': budget}), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting budget details: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error'}), 500
+
+@budgets_bp.route('/budgets', methods=['POST'])
+def create_budget():
+    """Create new budget with lines"""
+    try:
+        user_id = get_user_from_token()
+        if not user_id:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        
+        data = request.get_json()
+        
+        # Validate required fields
+        name = data.get('name', '').strip()
+        start_date = data.get('start_date', '').strip()
+        end_date = data.get('end_date', '').strip()
+        status = data.get('status', 'draft').strip()
+        lines = data.get('lines', [])
+        
+        if not name:
+            return jsonify({'success': False, 'message': 'Budget name is required'}), 400
+        
+        if not start_date or not end_date:
+            return jsonify({'success': False, 'message': 'Start date and end date are required'}), 400
+        
+        if status not in ['draft', 'confirmed', 'revised', 'archived']:
+            return jsonify({'success': False, 'message': 'Invalid status'}), 400
+        
+        # Insert budget
+        budget_query = """
+            INSERT INTO budgets (user_id, name, start_date, end_date, status)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
+        """
+        budget_params = (user_id, name, start_date, end_date, status)
+        budget_result = execute_insert(budget_query, budget_params)
+        
+        if not budget_result:
+            raise Exception("Failed to create budget")
+        
+        budget_id = budget_result[0]['id']
+        
+        # Insert budget lines
+        lines_inserted = 0
+        for line in lines:
+            analytical_account_id = line.get('analytical_account_id')
+            line_type = line.get('type', 'expense')
+            planned_amount = float(line.get('planned_amount', 0))
+            
+            if analytical_account_id and planned_amount > 0:
+                line_query = """
+                    INSERT INTO budget_lines (budget_id, analytical_account_id, type, planned_amount)
+                    VALUES (%s, %s, %s, %s)
+                """
+                line_params = (budget_id, analytical_account_id, line_type, planned_amount)
+                execute_insert(line_query, line_params)
+                lines_inserted += 1
+        
+        logger.info(f"✅ Budget created: ID {budget_id}, Name: {name}, Lines: {lines_inserted}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Budget created successfully',
+            'budget_id': budget_id,
+            'lines_inserted': lines_inserted
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating budget: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'success': False, 'message': 'Server error', 'error': str(e)}), 500
+
+@budgets_bp.route('/budgets/<int:budget_id>', methods=['PUT'])
+def update_budget(budget_id):
+    """Update budget with lines"""
+    try:
+        user_id = get_user_from_token()
+        if not user_id:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        
+        # Check if budget belongs to user
+        check_query = "SELECT id FROM budgets WHERE id = %s AND user_id = %s"
+        existing = execute_query(check_query, (budget_id, user_id))
+        
+        if not existing:
+            return jsonify({'success': False, 'message': 'Budget not found'}), 404
+        
+        data = request.get_json()
+        
+        # Validate required fields
+        name = data.get('name', '').strip()
+        start_date = data.get('start_date', '').strip()
+        end_date = data.get('end_date', '').strip()
+        status = data.get('status', 'draft').strip()
+        lines = data.get('lines', [])
+        
+        if not name:
+            return jsonify({'success': False, 'message': 'Budget name is required'}), 400
+        
+        if not start_date or not end_date:
+            return jsonify({'success': False, 'message': 'Start date and end date are required'}), 400
+        
+        if status not in ['draft', 'confirmed', 'revised', 'archived']:
+            return jsonify({'success': False, 'message': 'Invalid status'}), 400
+        
+        # Update budget header
+        budget_query = """
+            UPDATE budgets
+            SET name = %s, start_date = %s, end_date = %s, status = %s
+            WHERE id = %s AND user_id = %s
+        """
+        budget_params = (name, start_date, end_date, status, budget_id, user_id)
+        execute_update(budget_query, budget_params)
+        
+        # Delete existing lines
+        delete_lines_query = "DELETE FROM budget_lines WHERE budget_id = %s"
+        execute_update(delete_lines_query, (budget_id,))
+        
+        # Insert new budget lines
+        lines_inserted = 0
+        for line in lines:
+            analytical_account_id = line.get('analytical_account_id')
+            line_type = line.get('type', 'expense')
+            planned_amount = float(line.get('planned_amount', 0))
+            achieved_amount = float(line.get('achieved_amount', 0))
+            
+            if analytical_account_id and planned_amount > 0:
+                line_query = """
+                    INSERT INTO budget_lines (budget_id, analytical_account_id, type, planned_amount, achieved_amount)
+                    VALUES (%s, %s, %s, %s, %s)
+                """
+                line_params = (budget_id, analytical_account_id, line_type, planned_amount, achieved_amount)
+                execute_insert(line_query, line_params)
+                lines_inserted += 1
+        
+        logger.info(f"✅ Budget updated: ID {budget_id}, Name: {name}, Lines: {lines_inserted}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Budget updated successfully',
+            'lines_updated': lines_inserted
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error updating budget: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error'}), 500
+
+@budgets_bp.route('/budgets/<int:budget_id>', methods=['DELETE'])
+def delete_budget(budget_id):
+    """Delete budget"""
+    try:
+        user_id = get_user_from_token()
+        if not user_id:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        
+        # Check if budget belongs to user and get name for logging
+        check_query = "SELECT name FROM budgets WHERE id = %s AND user_id = %s"
+        existing = execute_query(check_query, (budget_id, user_id))
+        
+        if not existing:
+            return jsonify({'success': False, 'message': 'Budget not found'}), 404
+        
+        budget_name = existing[0]['name']
+        
+        # Delete budget (lines will be deleted by CASCADE)
+        query = "DELETE FROM budgets WHERE id = %s AND user_id = %s"
+        execute_update(query, (budget_id, user_id))
+        
+        logger.info(f"🗑️ Budget deleted: ID {budget_id}, Name: {budget_name}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Budget deleted successfully'
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error deleting budget: {str(e)}")
+        return jsonify({'success': False, 'message': 'Server error'}), 500
+
+logger.info("✅ Budgets routes loaded")
+
+# Debug endpoint to check analytical accounts
+@budgets_bp.route('/debug/analytical-accounts', methods=['GET'])
+def debug_analytical_accounts():
+    """Debug endpoint to check analytical accounts"""
+    try:
+        query = "SELECT id, code, name FROM analytical_accounts LIMIT 10"
+        accounts = execute_query(query, ())
+        
+        return jsonify({
+            'success': True,
+            'count': len(accounts),
+            'accounts': accounts
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Debug error: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)}), 500

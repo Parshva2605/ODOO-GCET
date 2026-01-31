@@ -69,13 +69,13 @@
         </li>
         <li class="nav-item">
           <a class="nav-link" href="auto-analytical-model.html">
-            <i class="fas fa-magic"></i>
+            <i class="fas fa-robot"></i>
             <span>Auto Analytical Model</span>
           </a>
         </li>
         <li class="nav-item">
           <a class="nav-link" href="budgets.html">
-            <i class="fas fa-wallet"></i>
+            <i class="fas fa-calculator"></i>
             <span>Budgets</span>
           </a>
         </li>
@@ -188,15 +188,75 @@
       </div>
     </div>
     
+    <!-- Dashboard Widgets Row -->
+    <div class="row g-4 mb-4">
+      
+      <!-- Budget Overview -->
+      <div class="col-md-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="fas fa-wallet text-success"></i>
+              Budget Overview
+            </h5>
+            <a href="budgets.html" class="btn btn-sm btn-outline-primary">
+              <i class="fas fa-arrow-right"></i> View All
+            </a>
+          </div>
+          <div class="card-body">
+            <div class="row g-3 mb-3">
+              <div class="col-6">
+                <div class="bg-light p-3 rounded text-center">
+                  <h6 class="text-muted small mb-1">Active Budgets</h6>
+                  <h3 class="mb-0 text-primary" id="activeBudgetsCount">0</h3>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="bg-light p-3 rounded text-center">
+                  <h6 class="text-muted small mb-1">Total Planned</h6>
+                  <h3 class="mb-0 text-success" id="totalPlannedAmount">₹0</h3>
+                </div>
+              </div>
+            </div>
+            
+            <h6 class="mb-3">Recent Budgets</h6>
+            <div id="recentBudgetsList" class="list-group list-group-flush">
+              <div class="text-center text-muted py-3">
+                <i class="fas fa-spinner fa-spin"></i> Loading...
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Recent Activity -->
+      <div class="col-md-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">
+              <i class="fas fa-clock text-info"></i>
+              Recent Activity
+            </h5>
+          </div>
+          <div class="card-body">
+            <div id="recentActivity">
+              <p class="text-muted">Loading recent activity...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+    
     <!-- Recent Activity Section -->
-    <div class="row">
+    <div class="row" style="display: none;">
       <div class="col-12">
         <div class="card">
           <div class="card-header">
             <h5>Recent Activity</h5>
           </div>
           <div class="card-body">
-            <div id="recentActivity">
+            <div id="recentActivityOld">
               <p class="text-muted">Loading recent activity...</p>
             </div>
           </div>

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Budgets - Budget Accounting System</title>
+  
+  <!-- Bootstrap 5.3.2 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Font Awesome 6.5.0 CDN -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  
+  <!-- Custom CSS -->
+  <link href="css/styles.css" rel="stylesheet">
+  <link href="css/dashboard.css" rel="stylesheet">
+  
+  <style>
+    .page-card {
+      background: white;
+      border-radius: 10px;
+      padding: 25px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .btn-brown {
+      background: #8B4513;
+      color: white;
+      border: none;
+    }
+    .btn-brown:hover {
+      background: #654321;
+      color: white;
+    }
+    .budget-tabs .nav-link {
+      color: #666;
+      border: none;
+      border-bottom: 3px solid transparent;
+      padding: 10px 20px;
+    }
+    .budget-tabs .nav-link.active {
+      color: #8B4513;
+      border-bottom: 3px solid #8B4513;
+      font-weight: 600;
+    }
+    .budget-tabs .nav-link:hover {
+      color: #8B4513;
+      border-bottom: 3px solid #ddd;
+    }
+    .table-actions button {
+      margin: 0 2px;
+    }
+    .text-brown {
+      color: #8B4513;
+    }
+    .btn-sm.btn-primary {
+      padding: 0.25rem 0.5rem !important;
+      font-size: 0.875rem !important;
+    }
+  </style>
+</head>
+<body>
+  
+  <!-- Mobile Menu Button -->
+  <button class="mobile-menu-btn" id="mobileMenuBtn">
+    <i class="fas fa-bars"></i>
+  </button>
+  
+  <!-- LEFT SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    
+    <!-- Sidebar Header -->
+    <div class="sidebar-header">
+      <h4 class="text-white">Shiv Furniture</h4>
+      <p class="text-white-50 small">Budget System</p>
+    </div>
+    
+    <!-- User Info Section -->
+    <div class="user-info">
+      <i class="fas fa-user-circle fa-2x"></i>
+      <div>
+        <div id="userName">Loading...</div>
+        <div id="userEmail" class="small">email</div>
+      </div>
+    </div>
+    
+    <!-- Navigation Menu -->
+    <nav class="sidebar-nav">
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a class="nav-link" href="dashboard.html">
+            <i class="fas fa-home"></i>
+            <span>Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="contacts.html">
+            <i class="fas fa-address-book"></i>
+            <span>Contacts</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="products.html">
+            <i class="fas fa-box"></i>
+            <span>Products</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="analytical-accounts.html">
+            <i class="fas fa-chart-pie"></i>
+            <span>Analytical Accounts</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="auto-analytical-model.html">
+            <i class="fas fa-robot"></i>
+            <span>Auto Analytical Model</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link active" href="budgets.html">
+            <i class="fas fa-calculator"></i>
+            <span>Budgets</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="purchase-orders.html">
+            <i class="fas fa-shopping-cart"></i>
+            <span>Purchase Orders</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="reports.html">
+            <i class="fas fa-chart-line"></i>
+            <span>Reports</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+    
+    <!-- Logout Button -->
+    <button id="logoutBtn" class="btn btn-light w-100">
+      <i class="fas fa-sign-out-alt"></i> Logout
+    </button>
+    
+  </div>
+  
+  <!-- RIGHT MAIN CONTENT -->
+  <div class="main-content">
+    
+    <!-- Content Header -->
+    <div class="content-header">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2>Budgets</h2>
+          <p class="text-muted">Manage budget planning and tracking</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Search and Filters -->
+    <div class="card mb-4" id="budgetFiltersCard">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">
+              <i class="fas fa-search"></i> Search Budget
+            </label>
+            <input type="text" class="form-control" id="budgetSearchInput"
+                   placeholder="Search by budget name..."
+                   onkeyup="filterBudgets()">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">
+              <i class="fas fa-calendar"></i> Start Date From
+            </label>
+            <input type="date" class="form-control" id="filterStartDate"
+                   onchange="filterBudgets()">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">
+              <i class="fas fa-calendar"></i> End Date To
+            </label>
+            <input type="date" class="form-control" id="filterEndDate"
+                   onchange="filterBudgets()">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">&nbsp;</label>
+            <button class="btn btn-secondary w-100" onclick="clearFilters()">
+              <i class="fas fa-times"></i> Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Budget Tabs -->
+    <ul class="nav nav-tabs budget-tabs mb-4" id="budgetTabs" role="tablist">
+      <li class="nav-item">
+        <a class="nav-link" href="#" data-status="draft" data-tab="list">
+          <i class="fas fa-file"></i> Draft Budgets
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="#" data-status="confirm" data-tab="list">
+          <i class="fas fa-check-circle"></i> Confirmed Budgets
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="#" data-status="revised" data-tab="list">
+          <i class="fas fa-history"></i> Revised Budgets
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="#" data-status="archived" data-tab="list">
+          <i class="fas fa-archive"></i> Archived Budgets
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link active" href="#" data-status="new" data-tab="form">
+          <i class="fas fa-plus-circle"></i> New Budget
+        </a>
+      </li>
+    </ul>
+    
+    <!-- Budget Form (Create/Edit) -->
+    <div id="budgetFormView" class="page-card">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0">
+          <i class="fas fa-edit"></i>
+          <span id="formTitle">Create New Budget</span>
+        </h4>
+        <button type="button" class="btn btn-sm btn-info" id="refreshAchievementsBtn"
+                style="display: none;" onclick="refreshAchievements()">
+          <i class="fas fa-sync-alt"></i> Refresh Achievements
+        </button>
+      </div>
+      
+      <form id="budgetForm">
+        <input type="hidden" id="budgetId">
+        
+        <!-- Budget Header Fields -->
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <label class="form-label">Budget Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="budgetName" placeholder="e.g., Q1 2026 Marketing Budget" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Start Date <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="startDate" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">End Date <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="endDate" required>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Status</label>
+            <select class="form-control" id="budgetStatus">
+              <option value="draft" selected>Draft</option>
+              <option value="confirm">Confirmed</option>
+              <option value="revised">Revised</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+        </div>
+        
+        <div id="revisionInfo" class="alert alert-info" style="display: none;">
+          <i class="fas fa-info-circle"></i>
+          <strong>Revision of:</strong> <span id="revisionOfName"></span>
+        </div>
+        
+        <hr class="my-4">
+        
+        <!-- Budget Lines Section -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">
+            <i class="fas fa-list"></i> Budget Lines
+          </h5>
+          <div>
+            
+            <button type="button" class="btn btn-success" onclick="console.log('Button clicked!'); if(typeof addBudgetLine === 'function'){ addBudgetLine(); } else { alert('Function not found!'); }">
+              <i class="fas fa-plus"></i> Add Line
+            </button>
+          </div>
+        </div>
+        
+        <div class="table-responsive">
+          <table class="table table-bordered table-hover">
+            <thead class="table-light">
+              <tr>
+                <th style="width: 25%;">Analytical Account <span class="text-danger">*</span></th>
+                <th style="width: 15%;">Type <span class="text-danger">*</span></th>
+                <th style="width: 15%;">Planned Amount <span class="text-danger">*</span></th>
+                <th style="width: 15%;">Achieved Amount</th>
+                <th style="width: 10%;">Achieved %</th>
+                <th style="width: 15%;">Amount to Achieve</th>
+                <th style="width: 5%;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="budgetLinesBody">
+              <tr>
+                <td colspan="7" class="text-center text-muted">
+                  <i class="fas fa-info-circle"></i>
+                  Click "Add Line" to add budget lines
+                </td>
+              </tr>
+            </tbody>
+            <tfoot class="table-secondary">
+              <tr>
+                <td colspan="2" class="text-end"><strong>TOTALS:</strong></td>
+                <td><strong id="totalPlanned">₹0.00</strong></td>
+                <td><strong id="totalAchieved">₹0.00</strong></td>
+                <td><strong id="totalPercentage">0%</strong></td>
+                <td><strong id="totalToAchieve">₹0.00</strong></td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        
+        <!-- Form Actions -->
+        <div class="mt-4">
+          <button type="submit" class="btn btn-brown btn-lg">
+            <i class="fas fa-save"></i> Save Budget
+          </button>
+          <button type="button" class="btn btn-secondary btn-lg ms-2" onclick="cancelForm()">
+            <i class="fas fa-times"></i> Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+    
+    <!-- Budget List View -->
+    <div id="budgetListView" class="page-card" style="display: none;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">
+          <i class="fas fa-list"></i>
+          <span id="listTitle">Budgets</span>
+        </h4>
+        <button class="btn btn-brown" onclick="showNewBudgetForm()">
+          <i class="fas fa-plus"></i> Create New Budget
+        </button>
+      </div>
+      
+      <!-- Budget List and Chart -->
+      <div class="row">
+        <!-- Left: Budget List Table -->
+        <div class="col-lg-8">
+          <div class="card">
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Budget Name</th>
+                      <th>Start Date</th>
+                      <th>End Date</th>
+                      <th>Status</th>
+                      <th>Total Planned</th>
+                      <th>Total Achieved</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="budgetListBody">
+                    <tr>
+                      <td colspan="7" class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                          <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading budgets...</p>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Right: Pie Chart -->
+        <div class="col-lg-4">
+          <div class="card">
+            <div class="card-header bg-white">
+              <h5 class="mb-0" id="chartBudgetTitle">
+                <i class="fas fa-chart-pie text-primary"></i>
+                Budget Distribution
+              </h5>
+            </div>
+            <div class="card-body">
+              <canvas id="budgetPieChart" style="max-height: 300px;"></canvas>
+              <div id="chartMessage" class="text-center text-muted py-5">
+                <i class="fas fa-info-circle fa-2x mb-2 d-block"></i>
+                <p>Click a budget to view distribution</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+  
+  <!-- Budget Report Modal -->
+  <div class="modal fade" id="budgetReportModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-file-invoice"></i> Budget Report
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4" id="reportContent">
+          <!-- Report content will be inserted here -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i> Close
+          </button>
+          <button type="button" class="btn btn-primary" onclick="printReport()">
+            <i class="fas fa-print"></i> Print Report
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  
+  <!-- Custom JavaScript -->
+  <script src="js/budgets.js"></script>
+  
+  <script>
+  // Force test after page loads
+  setTimeout(function() {
+      console.log('=== BUDGET PAGE DEBUG ===');
+      console.log('1. addBudgetLine function exists?', typeof addBudgetLine);
+      console.log('2. analyticalAccounts loaded?', analyticalAccounts);
+      console.log('3. analyticalAccounts count:', analyticalAccounts ? analyticalAccounts.length : 0);
+      console.log('========================');
+  }, 2000);
+  
+  // API Test Function
+  async function testAPI() {
+      const token = localStorage.getItem('token');
+      console.log('Testing API...');
+      
+      try {
+          const response = await fetch('http://127.0.0.1:5000/api/analytical-accounts', {
+              headers: { 'Authorization': 'Bearer ' + token }
+          });
+          
+          console.log('Response status:', response.status);
+          const data = await response.json();
+          console.log('Response data:', data);
+          console.log('Is array?', Array.isArray(data));
+          
+          let message = 'API Response:\n';
+          message += 'Status: ' + response.status + '\n';
+          
+          if (data.success && data.accounts) {
+              message += 'Success: ' + data.success + '\n';
+              message += 'Accounts Count: ' + data.accounts.length + '\n';
+              message += 'Data: ' + JSON.stringify(data.accounts, null, 2);
+          } else {
+              message += 'Raw Data: ' + JSON.stringify(data, null, 2);
+          }
+          
+          alert(message);
+      } catch (error) {
+          console.error('API Error:', error);
+          alert('Error: ' + error.message);
+      }
+  }
+  </script>
+</body>
+</html>
