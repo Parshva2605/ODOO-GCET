@@ -36,6 +36,14 @@ from routes.products import products_bp
 app.register_blueprint(products_bp, url_prefix='/api')
 logger.info("✅ Products routes registered")
 
+from routes.analytical_accounts import analytical_accounts_bp
+app.register_blueprint(analytical_accounts_bp, url_prefix='/api')
+logger.info("✅ Analytical Accounts routes registered")
+
+from routes.auto_analytical_models import auto_analytical_models_bp
+app.register_blueprint(auto_analytical_models_bp, url_prefix='/api')
+logger.info("✅ Auto Analytical Models routes registered")
+
 # ===== ROUTES =====
 
 @app.route('/')

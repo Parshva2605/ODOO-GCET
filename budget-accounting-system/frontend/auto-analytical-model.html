@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Analytical Model - Budget Accounting System</title>
+  
+  <!-- Bootstrap 5.3.2 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Font Awesome 6.5.0 CDN -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  
+  <!-- Custom CSS -->
+  <link href="css/styles.css" rel="stylesheet">
+  <link href="css/dashboard.css" rel="stylesheet">
+</head>
+<body>
+  
+  <!-- Mobile Menu Button -->
+  <button class="mobile-menu-btn" id="mobileMenuBtn">
+    <i class="fas fa-bars"></i>
+  </button>
+  
+  <!-- LEFT SIDEBAR -->
+  <div class="sidebar" id="sidebar">
+    
+    <!-- Sidebar Header -->
+    <div class="sidebar-header">
+      <h4 class="text-white">Shiv Furniture</h4>
+      <p class="text-white-50 small">Budget System</p>
+    </div>
+    
+    <!-- User Info Section -->
+    <div class="user-info">
+      <i class="fas fa-user-circle fa-2x"></i>
+      <div>
+        <div id="userName">Loading...</div>
+        <div id="userEmail" class="small">email</div>
+      </div>
+    </div>
+    
+    <!-- Navigation Menu -->
+    <nav class="sidebar-nav">
+      <ul class="nav flex-column">
+        <li class="nav-item">
+          <a class="nav-link" href="dashboard.html">
+            <i class="fas fa-home"></i>
+            <span>Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="contacts.html">
+            <i class="fas fa-address-book"></i>
+            <span>Contacts</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="products.html">
+            <i class="fas fa-box"></i>
+            <span>Products</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="analytical-accounts.html">
+            <i class="fas fa-chart-pie"></i>
+            <span>Analytical Accounts</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link active" href="auto-analytical-model.html">
+            <i class="fas fa-magic"></i>
+            <span>Auto Analytical Model</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="budgets.html">
+            <i class="fas fa-wallet"></i>
+            <span>Budgets</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+    
+    <!-- Logout Button -->
+    <button id="logoutBtn" class="btn btn-light w-100">
+      <i class="fas fa-sign-out-alt"></i> Logout
+    </button>
+    
+  </div>
+  
+  <!-- RIGHT MAIN CONTENT -->
+  <div class="main-content">
+    
+    <!-- Content Header -->
+    <div class="content-header">
+      <h2>Auto Analytical Model</h2>
+      <p class="text-muted">Create automatic analytical account distribution rules</p>
+    </div>
+    
+    <!-- Two Column Layout -->
+    <div class="row">
+      
+      <!-- LEFT: Analytics Master List -->
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h5><i class="fas fa-chart-pie me-2"></i>Analytics Master</h5>
+          </div>
+          <div class="card-body" id="analyticsList">
+            <div class="text-center text-muted">
+              <i class="fas fa-spinner fa-spin"></i> Loading analytical accounts...
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- RIGHT: Auto Model Form -->
+      <div class="col-md-6">
+        <div class="card">
+          <div class="card-header">
+            <h5><i class="fas fa-robot me-2"></i>Auto Analytical Model</h5>
+            <ul class="nav nav-tabs mt-2" id="modelTabs">
+              <li class="nav-item">
+                <a class="nav-link" href="#" data-tab="new">New</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link active" href="#" data-tab="confirm">Confirm</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="#" data-tab="archived">Archived</a>
+              </li>
+            </ul>
+          </div>
+          
+          <div class="card-body">
+            
+            <!-- TAB: New / Edit Form -->
+            <div id="newModelForm" style="display:none;">
+              <h6><i class="fas fa-plus me-2"></i>Create Analytical Distribution Rule</h6>
+              
+              <form id="analyticalModelForm">
+                <input type="hidden" id="modelId">
+                
+                <div class="mb-3">
+                  <label for="partnerTag" class="form-label">Partner Tag</label>
+                  <select id="partnerTag" class="form-select">
+                    <option value="">Select Partner (Optional)</option>
+                    <!-- Load from contacts -->
+                  </select>
+                  <small class="form-text text-muted">Leave empty to apply to any partner</small>
+                </div>
+                
+                <div class="mb-3">
+                  <label for="productCategory" class="form-label">Product Category</label>
+                  <select id="productCategory" class="form-select">
+                    <option value="">Select Category (Optional)</option>
+                    <!-- Load unique categories from products -->
+                  </select>
+                  <small class="form-text text-muted">Leave empty to apply to any product category</small>
+                </div>
+                
+                <div class="mb-3">
+                  <label for="analyticsToApply" class="form-label">Analytics to Apply <span class="text-danger">*</span></label>
+                  <select id="analyticsToApply" class="form-select" required>
+                    <option value="">Select from Analytics Master</option>
+                    <!-- Load from analytical accounts -->
+                  </select>
+                </div>
+                
+                <div class="mb-3">
+                  <label for="modelStatus" class="form-label">Status</label>
+                  <select id="modelStatus" class="form-select">
+                    <option value="draft">Draft</option>
+                    <option value="confirm">Confirm</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+                
+                <div class="d-flex gap-2">
+                  <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-1"></i>Save Model
+                  </button>
+                  <button type="button" class="btn btn-secondary" onclick="cancelModelForm()">
+                    <i class="fas fa-times me-1"></i>Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+            
+            <!-- TAB: Confirmed Models List -->
+            <div id="confirmedModels">
+              <button class="btn btn-success mb-3" onclick="showNewForm()">
+                <i class="fas fa-plus me-1"></i>New Model
+              </button>
+              
+              <div class="table-responsive">
+                <table class="table table-striped" id="modelsTable">
+                  <thead>
+                    <tr>
+                      <th>Partner</th>
+                      <th>Product</th>
+                      <th>Analytics</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="modelsTableBody">
+                    <tr>
+                      <td colspan="5" class="text-center text-muted">Loading models...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <!-- TAB: Archived Models -->
+            <div id="archivedModels" style="display:none;">
+              <div class="table-responsive">
+                <table class="table table-striped">
+                  <thead>
+                    <tr>
+                      <th>Partner</th>
+                      <th>Product</th>
+                      <th>Analytics</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="archivedModelsTableBody">
+                    <tr>
+                      <td colspan="5" class="text-center text-muted">Loading archived models...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            
+            <!-- Info Box -->
+            <div class="alert alert-info mt-3">
+              <h6><i class="fas fa-info-circle me-2"></i>How it works:</h6>
+              <p class="mb-2">The model applies if any field matches the transaction.</p>
+              <p class="mb-2"><strong>Priority:</strong> More matched fields = Higher priority.</p>
+              <p class="mb-0"><strong>Example:</strong> If Product Category = "Wooden Furniture" AND Partner = "Mr. A", 
+                this rule will apply when both conditions match.</p>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+      
+    </div>
+    
+  </div>
+  
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Custom JavaScript -->
+  <script src="js/auto-analytical-model.js"></script>
+</body>
+</html>

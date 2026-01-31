@@ -253,3 +253,42 @@ BEGIN
     RAISE NOTICE '👤 Sample admin user: admin@shivfurniture.com';
     RAISE NOTICE '🏢 Company: Shiv Furniture';
 END $$;
+
+-- =====================================================
+-- 9. AUTO_ANALYTICAL_MODELS TABLE
+-- =====================================================
+CREATE TABLE auto_analytical_models (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    partner_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL,
+    product_category VARCHAR(100),
+    analytical_account_id INTEGER NOT NULL REFERENCES analytical_accounts(id) ON DELETE CASCADE,
+    status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'confirm', 'cancelled')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add indexes
+CREATE INDEX idx_auto_analytical_models_user_id ON auto_analytical_models(user_id);
+CREATE INDEX idx_auto_analytical_models_status ON auto_analytical_models(status);
+CREATE INDEX idx_auto_analytical_models_partner_id ON auto_analytical_models(partner_id);
+CREATE INDEX idx_auto_analytical_models_analytical_account_id ON auto_analytical_models(analytical_account_id);
+
+-- Add comments
+COMMENT ON TABLE auto_analytical_models IS 'Automatic analytical account distribution rules';
+COMMENT ON COLUMN auto_analytical_models.partner_id IS 'Optional partner filter - null means any partner';
+COMMENT ON COLUMN auto_analytical_models.product_category IS 'Optional product category filter - null means any category';
+COMMENT ON COLUMN auto_analytical_models.analytical_account_id IS 'Analytical account to apply when rule matches';
+COMMENT ON COLUMN auto_analytical_models.status IS 'Rule status: draft, confirm (active), cancelled (archived)';
+
+-- Add trigger for updated_at
+CREATE TRIGGER update_auto_analytical_models_updated_at 
+    BEFORE UPDATE ON auto_analytical_models 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Insert sample auto analytical models
+INSERT INTO auto_analytical_models (user_id, partner_id, product_category, analytical_account_id, status) VALUES
+(1, NULL, 'Furniture', 1, 'confirm'),  -- Any partner + Furniture category -> Marketing
+(1, 1, NULL, 2, 'confirm'),            -- ABC Suppliers + Any product -> Operations
+(1, NULL, NULL, 3, 'draft');           -- Fallback rule: Any partner + Any product -> Production (draft)

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contacts - Budget Accounting System</title>
+  <title>Analytical Accounts - Budget Accounting System</title>
   
   <!-- Bootstrap 5.3.2 CDN -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -50,7 +50,7 @@
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link active" href="contacts.html">
+          <a class="nav-link" href="contacts.html">
             <i class="fas fa-address-book"></i>
             <span>Contacts</span>
           </a>
@@ -62,7 +62,7 @@
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="analytical-accounts.html">
+          <a class="nav-link active" href="analytical-accounts.html">
             <i class="fas fa-chart-pie"></i>
             <span>Analytical Accounts</span>
           </a>
@@ -108,47 +108,30 @@
     <div class="content-header">
       <div class="d-flex justify-content-between align-items-center">
         <div>
-          <h2>Contacts Management</h2>
-          <p class="text-muted">Manage your customers and vendors</p>
+          <h2>Analytical Accounts</h2>
+          <p class="text-muted">Manage cost centers for budget tracking</p>
         </div>
-        <button class="btn btn-primary" id="addContactBtn">
-          <i class="fas fa-plus"></i> Add Contact
+        <button class="btn btn-primary" id="addAnalyticalAccountBtn">
+          <i class="fas fa-plus"></i> Add Analytical Account
         </button>
       </div>
     </div>
     
-    <!-- Filter Tabs -->
-    <ul class="nav nav-tabs mb-4" id="contactTabs">
-      <li class="nav-item">
-        <a class="nav-link active" href="#" data-filter="all">All Contacts</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" href="#" data-filter="customer">Customers</a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" href="#" data-filter="vendor">Vendors</a>
-      </li>
-    </ul>
-    
-    <!-- Contacts Table -->
+    <!-- Analytical Accounts Table -->
     <div class="card">
       <div class="card-body">
         <div class="table-responsive">
-          <table class="table table-hover" id="contactsTable">
+          <table class="table table-hover" id="analyticalAccountsTable">
             <thead>
               <tr>
+                <th>Code</th>
                 <th>Name</th>
-                <th>Type</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Company</th>
-                <th>GSTIN</th>
                 <th>Actions</th>
               </tr>
             </thead>
-            <tbody id="contactsTableBody">
+            <tbody id="analyticalAccountsTableBody">
               <tr>
-                <td colspan="7" class="text-center">Loading contacts...</td>
+                <td colspan="3" class="text-center">Loading analytical accounts...</td>
               </tr>
             </tbody>
           </table>
@@ -158,68 +141,40 @@
     
   </div>
   
-  <!-- Add/Edit Contact Modal -->
-  <div class="modal fade" id="contactModal" tabindex="-1" aria-labelledby="contactModalLabel" aria-hidden="true">
+  <!-- Add/Edit Analytical Account Modal -->
+  <div class="modal fade" id="analyticalAccountModal" tabindex="-1" aria-labelledby="analyticalAccountModalLabel" aria-hidden="true">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="contactModalLabel">
-            <span id="modalTitle">Add Contact</span>
+          <h5 class="modal-title" id="analyticalAccountModalLabel">
+            <span id="modalTitle">Add Analytical Account</span>
           </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <form id="contactForm">
+        <form id="analyticalAccountForm">
           <div class="modal-body">
             
             <!-- Hidden ID field for edit mode -->
-            <input type="hidden" id="contactId">
+            <input type="hidden" id="accountId">
             
-            <!-- Contact Type -->
+            <!-- Account Code -->
             <div class="mb-3">
-              <label for="contactType" class="form-label">Contact Type <span class="text-danger">*</span></label>
-              <select id="contactType" class="form-select" required>
-                <option value="">Select Type</option>
-                <option value="customer">Customer</option>
-                <option value="vendor">Vendor</option>
-              </select>
+              <label for="accountCode" class="form-label">Account Code <span class="text-danger">*</span></label>
+              <input type="text" id="accountCode" class="form-control" placeholder="e.g., MARK001" required>
+              <small class="form-text text-muted">Unique identifier for this cost center</small>
             </div>
             
-            <!-- Name -->
+            <!-- Account Name -->
             <div class="mb-3">
-              <label for="contactName" class="form-label">Name <span class="text-danger">*</span></label>
-              <input type="text" id="contactName" class="form-control" placeholder="Enter contact name" required>
-            </div>
-            
-            <!-- Email -->
-            <div class="mb-3">
-              <label for="contactEmail" class="form-label">Email</label>
-              <input type="email" id="contactEmail" class="form-control" placeholder="Enter email address">
-            </div>
-            
-            <!-- Phone -->
-            <div class="mb-3">
-              <label for="contactPhone" class="form-label">Phone</label>
-              <input type="tel" id="contactPhone" class="form-control" placeholder="Enter phone number">
-            </div>
-            
-            <!-- Company Name -->
-            <div class="mb-3">
-              <label for="contactCompany" class="form-label">Company Name</label>
-              <input type="text" id="contactCompany" class="form-control" placeholder="Enter company name">
-            </div>
-            
-            <!-- GSTIN -->
-            <div class="mb-3">
-              <label for="contactGstin" class="form-label">GSTIN</label>
-              <input type="text" id="contactGstin" class="form-control" placeholder="Enter GST number" pattern="[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}">
-              <small class="form-text text-muted">Format: 22AAAAA0000A1Z5</small>
+              <label for="accountName" class="form-label">Account Name <span class="text-danger">*</span></label>
+              <input type="text" id="accountName" class="form-control" placeholder="e.g., Marketing" required>
             </div>
             
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="saveContactBtn">
-              <span id="saveButtonText">Save Contact</span>
+            <button type="submit" class="btn btn-primary" id="saveAccountBtn">
+              <span id="saveButtonText">Save Account</span>
               <span id="saveButtonSpinner" class="spinner-border spinner-border-sm ms-2" style="display:none;"></span>
             </button>
           </div>
@@ -237,8 +192,8 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <p>Are you sure you want to delete this contact?</p>
-          <p><strong id="deleteContactName"></strong></p>
+          <p>Are you sure you want to delete this analytical account?</p>
+          <p><strong id="deleteAccountName"></strong></p>
           <p class="text-muted">This action cannot be undone.</p>
         </div>
         <div class="modal-footer">
@@ -256,6 +211,6 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   
   <!-- Custom JavaScript -->
-  <script src="js/contacts.js"></script>
+  <script src="js/analytical-accounts.js"></script>
 </body>
 </html>
