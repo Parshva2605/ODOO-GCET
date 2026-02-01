@@ -4,6 +4,7 @@ from config import Config
 from utils.auth import token_required
 from utils.db import get_connection, release_connection, execute_query, execute_update, execute_insert
 import logging
+import time
 
 # ===== SETUP LOGGING =====
 logging.basicConfig(
@@ -681,7 +682,7 @@ def record_invoice_payment(current_user, invoice_id):
         
         # Get current invoice
         cursor.execute("""
-            SELECT total, paid_via_cash, paid_via_bank, paid_via_online 
+            SELECT total, paid_via_cash, paid_via_bank, paid_via_online, customer_id, reference
             FROM customer_invoices 
             WHERE id = %s AND user_id = %s
         """, (invoice_id, user_id))
@@ -690,7 +691,7 @@ def record_invoice_payment(current_user, invoice_id):
         if not invoice:
             return jsonify({'error': 'Invoice not found'}), 404
         
-        total, paid_cash, paid_bank, paid_online = invoice
+        total, paid_cash, paid_bank, paid_online, customer_id, inv_reference = invoice
         
         # Add new payment
         payment_type = data.get('payment_type', 'online')
@@ -712,6 +713,25 @@ def record_invoice_payment(current_user, invoice_id):
         
         cursor.execute(update_query, (paid_cash, paid_bank, paid_online, invoice_id, user_id))
         
+        # Create payment record
+        payment_ref = 'PAY-' + str(int(time.time()))[-8:]
+        
+        payment_query = """
+        INSERT INTO payments 
+        (user_id, reference, date, payment_type, payment_method, amount, invoice_id, customer_id, notes)
+        VALUES (%s, %s, CURRENT_DATE, 'customer', %s, %s, %s, %s, %s)
+        """
+        
+        cursor.execute(payment_query, (
+            user_id,
+            payment_ref,
+            payment_type,
+            amount,
+            invoice_id,
+            customer_id,
+            'Payment via portal'
+        ))
+        
         connection.commit()
         
         logger.info(f'✅ Payment recorded for invoice: {invoice_id}')
@@ -721,6 +741,8 @@ def record_invoice_payment(current_user, invoice_id):
         if connection:
             connection.rollback()
         logger.error(f'❌ Error recording payment: {str(e)}')
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
     finally:
         if cursor:
@@ -729,6 +751,298 @@ def record_invoice_payment(current_user, invoice_id):
             release_connection(connection)
 
 logger.info("✅ Customer Invoices API routes registered")
+
+# ============================================
+# PORTAL AUTHENTICATION API
+# ============================================
+
+@app.route('/api/portal/login', methods=['POST'])
+def portal_login():
+    """Portal login for customers/vendors using email"""
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        # Find contact by email
+        query = """
+        SELECT id, user_id, name, email, contact_type
+        FROM contacts
+        WHERE email = %s
+        """
+        
+        cursor.execute(query, (email,))
+        result = cursor.fetchone()
+        
+        if not result:
+            cursor.close()
+            release_connection(connection)
+            return jsonify({'error': 'Contact not found'}), 404
+        
+        contact_id, user_id, name, email, contact_type = result
+        
+        cursor.close()
+        release_connection(connection)
+        
+        # Create portal token (different from admin token)
+        from routes.auth import generate_token
+        portal_token = generate_token({
+            'user_id': contact_id,  # Use contact_id as user_id for portal
+            'email': email,
+            'role': 'portal_' + contact_type
+        })
+        
+        logger.info(f'✅ Portal login: {email} ({contact_type})')
+        
+        return jsonify({
+            'token': portal_token,
+            'contact': {
+                'id': contact_id,
+                'name': name,
+                'email': email,
+                'type': contact_type
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f'❌ Portal login error: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/portal/invoices', methods=['GET'])
+def get_portal_invoices():
+    """Get invoices for logged-in customer"""
+    try:
+        # Get token from Authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Authorization token required'}), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # Verify token
+        from routes.auth import verify_token
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Invalid or expired token'}), 401
+        
+        contact_id = payload.get('user_id')  # This is actually contact_id for portal users
+        contact_role = payload.get('role', '')
+        
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        if 'customer' in contact_role:
+            # Get customer invoices
+            query = """
+            SELECT 
+                id, reference, date, total, payment_status,
+                paid_via_cash, paid_via_bank, paid_via_online, amount_due
+            FROM customer_invoices
+            WHERE customer_id = %s AND state = 'posted'
+            ORDER BY date DESC
+            """
+        else:
+            # For vendors, we don't have vendor bills yet, return empty
+            cursor.close()
+            release_connection(connection)
+            return jsonify([]), 200
+        
+        cursor.execute(query, (contact_id,))
+        columns = [desc[0] for desc in cursor.description]
+        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        
+        cursor.close()
+        release_connection(connection)
+        
+        logger.info(f'✅ Portal invoices retrieved: {len(results)}')
+        return jsonify(results), 200
+        
+    except Exception as e:
+        logger.error(f'❌ Portal invoices error: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/portal/invoices/<int:invoice_id>/qr', methods=['GET'])
+def generate_payment_qr(invoice_id):
+    """Generate UPI QR code for invoice payment"""
+    try:
+        # Get token from Authorization header
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Authorization token required'}), 401
+        
+        token = auth_header.split(' ')[1]
+        
+        # Verify token
+        from routes.auth import verify_token
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Invalid or expired token'}), 401
+        
+        contact_id = payload.get('user_id')  # This is actually contact_id for portal users
+        
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        # Get invoice details
+        query = """
+        SELECT ci.reference, ci.amount_due, u.email as business_email
+        FROM customer_invoices ci
+        JOIN users u ON ci.user_id = u.id
+        WHERE ci.id = %s AND ci.customer_id = %s
+        """
+        
+        cursor.execute(query, (invoice_id, contact_id))
+        result = cursor.fetchone()
+        
+        if not result:
+            cursor.close()
+            release_connection(connection)
+            return jsonify({'error': 'Invoice not found'}), 404
+        
+        reference, amount_due, business_email = result
+        
+        # Generate UPI payment string for PhonePe
+        # Format: upi://pay?pa=UPI_ID&pn=NAME&am=AMOUNT&tn=NOTE
+        upi_id = "shivfurniture@paytm"  # Replace with actual UPI ID
+        business_name = "Shiv Furniture"
+        
+        upi_string = f"upi://pay?pa={upi_id}&pn={business_name}&am={amount_due}&tn=Invoice {reference}&cu=INR"
+        
+        cursor.close()
+        release_connection(connection)
+        
+        return jsonify({
+            'qr_data': upi_string,
+            'amount': float(amount_due),
+            'reference': reference,
+            'upi_id': upi_id
+        }), 200
+        
+    except Exception as e:
+        logger.error(f'❌ QR generation error: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+logger.info("✅ Portal Authentication API routes registered")
+
+# ============================================
+# PAYMENTS API
+# ============================================
+
+@app.route('/api/payments', methods=['GET'])
+@token_required
+def get_payments(current_user):
+    """Get all payments for current user"""
+    try:
+        user_id = current_user['id']
+        
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        query = """
+        SELECT 
+            p.id, p.reference, p.date, p.payment_type, p.payment_method, p.amount,
+            p.notes,
+            CASE 
+                WHEN p.payment_type = 'customer' THEN c1.name
+                WHEN p.payment_type = 'vendor' THEN c2.name
+            END as contact_name,
+            CASE 
+                WHEN p.payment_type = 'customer' THEN ci.reference
+                WHEN p.payment_type = 'vendor' THEN 'VB-' || p.bill_id
+            END as document_reference
+        FROM payments p
+        LEFT JOIN contacts c1 ON p.customer_id = c1.id
+        LEFT JOIN contacts c2 ON p.vendor_id = c2.id
+        LEFT JOIN customer_invoices ci ON p.invoice_id = ci.id
+        WHERE p.user_id = %s
+        ORDER BY p.date DESC, p.id DESC
+        """
+        
+        cursor.execute(query, (user_id,))
+        columns = [desc[0] for desc in cursor.description]
+        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        
+        cursor.close()
+        release_connection(connection)
+        
+        logger.info(f'✅ Retrieved {len(results)} payments')
+        return jsonify(results), 200
+        
+    except Exception as e:
+        logger.error(f'❌ Error fetching payments: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/payments', methods=['POST'])
+@token_required
+def create_payment(current_user):
+    """Create new payment record"""
+    connection = None
+    cursor = None
+    try:
+        user_id = current_user['id']
+        data = request.get_json()
+        
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        # Insert payment
+        query = """
+        INSERT INTO payments 
+        (user_id, reference, date, payment_type, payment_method, amount,
+         invoice_id, bill_id, customer_id, vendor_id, notes)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """
+        
+        cursor.execute(query, (
+            user_id,
+            data['reference'],
+            data['date'],
+            data['payment_type'],
+            data['payment_method'],
+            data['amount'],
+            data.get('invoice_id'),
+            data.get('bill_id'),
+            data.get('customer_id'),
+            data.get('vendor_id'),
+            data.get('notes')
+        ))
+        
+        payment_id = cursor.fetchone()[0]
+        
+        # Update invoice/bill payment status
+        if data.get('invoice_id'):
+            update_query = """
+            UPDATE customer_invoices 
+            SET paid_via_online = paid_via_online + %s
+            WHERE id = %s
+            """
+            cursor.execute(update_query, (data['amount'], data['invoice_id']))
+        
+        connection.commit()
+        
+        logger.info(f'✅ Payment created: {payment_id}')
+        return jsonify({'id': payment_id, 'message': 'Payment recorded'}), 201
+        
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        logger.error(f'❌ Error creating payment: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            release_connection(connection)
+
+logger.info("✅ Payments API routes registered")
 
 # ===== API ROUTES =====
 

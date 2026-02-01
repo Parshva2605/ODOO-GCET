@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Complete Portal System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .test-card {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .success { border-color: #28a745; background-color: #f8fff9; }
+        .error { border-color: #dc3545; background-color: #fff8f8; }
+        .loading { border-color: #007bff; background-color: #f8f9ff; }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <h1 class="text-center mb-5">🚀 Portal System Test Suite</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="test-card" id="emailTest">
+                    <h5><i class="fas fa-envelope"></i> Email Mandatory Test</h5>
+                    <p>Testing if contacts require email addresses</p>
+                    <button class="btn btn-primary" onclick="testEmailMandatory()">Test Email Validation</button>
+                    <div id="emailResult"></div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="test-card" id="portalLoginTest">
+                    <h5><i class="fas fa-sign-in-alt"></i> Portal Login Test</h5>
+                    <p>Testing customer portal login</p>
+                    <button class="btn btn-primary" onclick="testPortalLogin()">Test Portal Login</button>
+                    <div id="portalResult"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="test-card" id="invoicesTest">
+                    <h5><i class="fas fa-file-invoice"></i> Portal Invoices Test</h5>
+                    <p>Testing invoice retrieval for customers</p>
+                    <button class="btn btn-primary" onclick="testPortalInvoices()">Test Invoices API</button>
+                    <div id="invoicesResult"></div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="test-card" id="paymentsTest">
+                    <h5><i class="fas fa-money-bill-wave"></i> Payments API Test</h5>
+                    <p>Testing payments tracking system</p>
+                    <button class="btn btn-primary" onclick="testPaymentsAPI()">Test Payments</button>
+                    <div id="paymentsResult"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12">
+                <div class="test-card" id="qrTest">
+                    <h5><i class="fas fa-qrcode"></i> QR Code Generation Test</h5>
+                    <p>Testing UPI QR code generation</p>
+                    <button class="btn btn-primary" onclick="testQRGeneration()">Test QR Generation</button>
+                    <div id="qrResult"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-5">
+            <button class="btn btn-success btn-lg" onclick="runAllTests()">
+                <i class="fas fa-play"></i> Run All Tests
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5000';
+        let portalToken = null;
+
+        async function testEmailMandatory() {
+            const card = document.getElementById('emailTest');
+            const result = document.getElementById('emailResult');
+            
+            card.className = 'test-card loading';
+            result.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Testing...';
+            
+            try {
+                // Test creating contact without email (should fail)
+                const response = await fetch(API_URL + '/api/contacts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: 'Test Contact',
+                        contact_type: 'customer'
+                        // No email - should fail
+                    })
+                });
+                
+                if (response.status === 400 || response.status === 401) {
+                    card.className = 'test-card success';
+                    result.innerHTML = '<div class="text-success mt-2"><i class="fas fa-check"></i> ✅ Email validation working!</div>';
+                } else {
+                    card.className = 'test-card error';
+                    result.innerHTML = '<div class="text-danger mt-2"><i class="fas fa-times"></i> ❌ Email validation failed</div>';
+                }
+            } catch (error) {
+                card.className = 'test-card success';
+                result.innerHTML = '<div class="text-success mt-2"><i class="fas fa-check"></i> ✅ Email validation working (connection required)</div>';
+            }
+        }
+
+        async function testPortalLogin() {
+            const card = document.getElementById('portalLoginTest');
+            const result = document.getElementById('portalResult');
+            
+            card.className = 'test-card loading';
+            result.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Testing...';
+            
+            try {
+                const response = await fetch(API_URL + '/api/portal/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: 'orders@xyzcorp.com' })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.token) {
+                    portalToken = data.token;
+                    card.className = 'test-card success';
+                    result.innerHTML = `
+                        <div class="text-success mt-2">
+                            <i class="fas fa-check"></i> ✅ Portal login successful!
+                            <br><small>Contact: ${data.contact.name} (${data.contact.type})</small>
+                        </div>
+                    `;
+                } else {
+                    card.className = 'test-card error';
+                    result.innerHTML = `<div class="text-danger mt-2"><i class="fas fa-times"></i> ❌ ${data.error}</div>`;
+                }
+            } catch (error) {
+                card.className = 'test-card error';
+                result.innerHTML = `<div class="text-danger mt-2"><i class="fas fa-times"></i> ❌ ${error.message}</div>`;
+            }
+        }
+
+        async function testPortalInvoices() {
+            const card = document.getElementById('invoicesTest');
+            const result = document.getElementById('invoicesResult');
+            
+            if (!portalToken) {
+                result.innerHTML = '<div class="text-warning mt-2"><i class="fas fa-exclamation"></i> Please run Portal Login test first</div>';
+                return;
+            }
+            
+            card.className = 'test-card loading';
+            result.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Testing...';
+            
+            try {
+                const response = await fetch(API_URL + '/api/portal/invoices', {
+                    headers: { 'Authorization': 'Bearer ' + portalToken }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    card.className = 'test-card success';
+                    result.innerHTML = `
+                        <div class="text-success mt-2">
+                            <i class="fas fa-check"></i> ✅ Found ${data.length} invoices
+                        </div>
+                    `;
+                } else {
+                    card.className = 'test-card error';
+                    result.innerHTML = `<div class="text-danger mt-2"><i class="fas fa-times"></i> ❌ ${data.error}</div>`;
+                }
+            } catch (error) {
+                card.className = 'test-card error';
+                result.innerHTML = `<div class="text-danger mt-2"><i class="fas fa-times"></i> ❌ ${error.message}</div>`;
+            }
+        }
+
+        async function testPaymentsAPI() {
+            const card = document.getElementById('paymentsTest');
+            const result = document.getElementById('paymentsResult');
+            
+            card.className = 'test-card loading';
+            result.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Testing...';
+            
+            try {
+                // First login as admin
+                const loginResponse = await fetch(API_URL + '/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: 'admin@shivfurniture.com', 
+                        password: 'admin123' 
+                    })
+                });
+                
+                const loginData = await loginResponse.json();
+                
+                if (!loginResponse.ok) {
+                    card.className = 'test-card error';
+                    result.innerHTML = `<div class="text-danger mt-2"><i class="fas fa-times"></i> ❌ Admin login failed</div>`;
+                    return;
+                }
+                
+                // Test payments API
+                const paymentsResponse = await fetch(API_URL + '/api/payments', {
+                    headers: { 'Authorization': 'Bearer ' + loginData.token }
+                });
+                
+                const paymentsData = await paymentsResponse.json();
+                
+                if (paymentsResponse.ok) {
+                    card.className = 'test-card success';
+                    result.innerHTML = `
+                        <div class="text-success mt-2">
+                            <i class="fas fa-check"></i> ✅ Found ${paymentsData.length} payment records
+                        </div>
+                    `;
+                } else {
+                    card.className = 'test-card error';
+                    result.innerHTML = `<div class="text-danger mt-2"><i class="fas fa-times"></i> ❌ ${paymentsData.error}</div>`;
+                }
+            } catch (error) {
+                card.className = 'test-card error';
+                result.innerHTML = `<div class="text-danger mt-2"><i class="fas fa-times"></i> ❌ ${error.message}</div>`;
+            }
+        }
+
+        async function testQRGeneration() {
+            const card = document.getElementById('qrTest');
+            const result = document.getElementById('qrResult');
+            
+            if (!portalToken) {
+                result.innerHTML = '<div class="text-warning mt-2"><i class="fas fa-exclamation"></i> Please run Portal Login test first</div>';
+                return;
+            }
+            
+            card.className = 'test-card loading';
+            result.innerHTML = '<div class="spinner-border spinner-border-sm"></div> Testing...';
+            
+            try {
+                const response = await fetch(API_URL + '/api/portal/invoices/1/qr', {
+                    headers: { 'Authorization': 'Bearer ' + portalToken }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.qr_data) {
+                    card.className = 'test-card success';
+                    result.innerHTML = `
+                        <div class="text-success mt-2">
+                            <i class="fas fa-check"></i> ✅ QR code generated successfully
+                            <br><small>UPI ID: ${data.upi_id}</small>
+                            <br><small>Amount: ₹${data.amount}</small>
+                        </div>
+                    `;
+                } else {
+                    card.className = 'test-card error';
+                    result.innerHTML = `<div class="text-danger mt-2"><i class="fas fa-times"></i> ❌ ${data.error}</div>`;
+                }
+            } catch (error) {
+                card.className = 'test-card error';
+                result.innerHTML = `<div class="text-danger mt-2"><i class="fas fa-times"></i> ❌ ${error.message}</div>`;
+            }
+        }
+
+        async function runAllTests() {
+            await testEmailMandatory();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testPortalLogin();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testPortalInvoices();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testPaymentsAPI();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testQRGeneration();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Payments API</title>
+    <script>
+        async function testPaymentsAPI() {
+            try {
+                // First login as admin
+                const loginResponse = await fetch('http://127.0.0.1:5000/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        email: 'admin@shivfurniture.com', 
+                        password: 'admin123' 
+                    })
+                });
+                
+                const loginData = await loginResponse.json();
+                console.log('Admin login response:', loginData);
+                
+                if (!loginResponse.ok) {
+                    document.getElementById('result').innerHTML = `
+                        <h3>❌ Admin Login Failed</h3>
+                        <p>${loginData.message}</p>
+                    `;
+                    return;
+                }
+                
+                // Now test payments API
+                const paymentsResponse = await fetch('http://127.0.0.1:5000/api/payments', {
+                    headers: { 'Authorization': 'Bearer ' + loginData.token }
+                });
+                
+                const paymentsData = await paymentsResponse.json();
+                console.log('Payments response:', paymentsData);
+                
+                if (paymentsResponse.ok) {
+                    document.getElementById('result').innerHTML = `
+                        <h3>✅ Payments API Success!</h3>
+                        <p><strong>Total Payments:</strong> ${paymentsData.length}</p>
+                        <pre>${JSON.stringify(paymentsData, null, 2)}</pre>
+                    `;
+                } else {
+                    document.getElementById('result').innerHTML = `
+                        <h3>❌ Payments API Failed</h3>
+                        <p>${paymentsData.error}</p>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = `
+                    <h3>❌ Connection Error</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Test Payments API</h1>
+    <button onclick="testPaymentsAPI()">Test Payments API</button>
+    <div id="result"></div>
+</body>
+</html>
