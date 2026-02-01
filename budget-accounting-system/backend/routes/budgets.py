@@ -187,6 +187,8 @@ def create_budget(current_user):
         for line in data['lines']:
             if not line.get('analytical_account_id'):
                 continue
+            if not line.get('type') or line.get('type') not in ['income', 'expense']:
+                continue
             if float(line.get('planned_amount', 0)) <= 0:
                 continue
             valid_lines.append(line)
@@ -300,22 +302,40 @@ def update_budget(current_user, budget_id):
 @budgets_bp.route('/budgets/<int:budget_id>', methods=['DELETE'])
 @token_required
 def delete_budget(current_user, budget_id):
-    """Archive budget (soft delete)"""
+    """Archive budget (soft delete) - only allow deleting draft budgets"""
     try:
         user_id = current_user['id']
         
-        logger.info(f"🗑️ Archiving budget {budget_id}")
+        logger.info(f"🗑️ Attempting to delete budget {budget_id}")
         
+        # Check if budget exists and get its status
+        check_query = "SELECT status, name FROM budgets WHERE id = %s AND user_id = %s"
+        budget_info = execute_query(check_query, (budget_id, user_id))
+        
+        if not budget_info:
+            return jsonify({'error': 'Budget not found'}), 404
+        
+        budget_status = budget_info[0]['status']
+        budget_name = budget_info[0]['name']
+        
+        # Only allow deleting draft budgets
+        if budget_status != 'draft':
+            logger.warning(f"❌ Attempted to delete non-draft budget: {budget_id} (status: {budget_status})")
+            return jsonify({
+                'error': f'Cannot delete {budget_status} budgets. Only draft budgets can be deleted.'
+            }), 400
+        
+        # Archive the budget (soft delete)
         query = """
             UPDATE budgets 
             SET status = 'archived', updated_at = CURRENT_TIMESTAMP
-            WHERE id = %s AND user_id = %s
+            WHERE id = %s AND user_id = %s AND status = 'draft'
         """
         
         execute_update(query, (budget_id, user_id))
         
-        logger.info(f"✅ Budget archived: {budget_id}")
-        return jsonify({'message': 'Budget archived successfully'}), 200
+        logger.info(f"✅ Budget archived: {budget_id} ({budget_name})")
+        return jsonify({'message': f'Budget "{budget_name}" archived successfully'}), 200
         
     except Exception as e:
         logger.error(f"❌ Error archiving budget: {str(e)}", exc_info=True)

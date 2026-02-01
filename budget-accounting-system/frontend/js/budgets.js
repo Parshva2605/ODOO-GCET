@@ -63,8 +63,19 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
     
-    // Show New Budget form by default
-    showNewBudgetForm();
+    // Load draft budgets by default instead of showing new form
+    // Also activate the draft tab
+    const draftTab = document.querySelector('[data-status="draft"]');
+    if (draftTab) {
+        // Remove active from all tabs
+        document.querySelectorAll('#budgetTabs .nav-link').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        // Activate draft tab
+        draftTab.classList.add('active');
+    }
+    
+    loadBudgetsByStatus('draft');
     
     console.log('✅ Budget page initialized');
 });
@@ -512,8 +523,8 @@ function addBudgetLine(lineData = null) {
         </td>
         <td>
             <select class="form-control line-type" required>
+                <option value="expense" ${!lineData || lineData.type === 'expense' ? 'selected' : ''}>Expense</option>
                 <option value="income" ${lineData && lineData.type === 'income' ? 'selected' : ''}>Income</option>
-                <option value="expense" ${lineData && lineData.type === 'expense' ? 'selected' : ''}>Expense</option>
             </select>
         </td>
         <td>
@@ -700,7 +711,7 @@ async function saveBudget() {
             const type = typeSelect.value;
             const amount = parseFloat(amountInput.value);
             
-            if (accountId && amount > 0) {
+            if (accountId && type && amount > 0) {
                 budgetData.lines.push({
                     analytical_account_id: accountId,
                     type: type,
@@ -774,10 +785,15 @@ async function saveBudget() {
             }
         } else {
             const error = await response.json();
-            console.error('❌ Error saving budget:', error.error || 'Failed to save budget');
+            const errorMessage = error.error || 'Failed to save budget';
+            console.error('❌ Error saving budget:', errorMessage);
+            
+            // Show error to user
+            alert('Error saving budget: ' + errorMessage);
         }
     } catch (error) {
         console.error('❌ Error saving budget:', error);
+        alert('Network error: Failed to save budget. Please check your connection.');
     }
 }
 

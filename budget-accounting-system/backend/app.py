@@ -369,6 +369,144 @@ def get_purchase_order(current_user, po_id):
 
 logger.info("✅ Purchase Orders API routes registered")
 
+# ============================================
+# SALES ORDERS API
+# ============================================
+
+@app.route('/api/sales-orders', methods=['GET'])
+@token_required
+def get_sales_orders(current_user):
+    """Get all sales orders for current user"""
+    try:
+        user_id = current_user['id']
+        
+        query = """
+        SELECT 
+            so.id, so.reference, so.date, so.customer_id, so.state, so.total,
+            c.name as customer_name
+        FROM sales_orders so
+        LEFT JOIN contacts c ON so.customer_id = c.id
+        WHERE so.user_id = %s
+        ORDER BY so.date DESC, so.id DESC
+        """
+        
+        results = execute_query(query, (user_id,))
+        
+        logger.info(f'✅ Retrieved {len(results)} sales orders')
+        return jsonify(results), 200
+        
+    except Exception as e:
+        logger.error(f'❌ Error fetching sales orders: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/sales-orders', methods=['POST'])
+@token_required
+def create_sales_order(current_user):
+    """Create new sales order"""
+    connection = None
+    cursor = None
+    try:
+        user_id = current_user['id']
+        data = request.get_json()
+        
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        # Insert sales order
+        query = """
+        INSERT INTO sales_orders (user_id, reference, date, customer_id, state, total)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """
+        
+        cursor.execute(query, (
+            user_id,
+            data['reference'],
+            data['date'],
+            data['customer_id'],
+            data.get('state', 'draft'),
+            data.get('total', 0)
+        ))
+        
+        so_id = cursor.fetchone()[0]
+        
+        # Insert sales order lines
+        if 'lines' in data:
+            for line in data['lines']:
+                line_query = """
+                INSERT INTO sales_order_lines 
+                (sales_order_id, product_id, description, quantity, price, subtotal, analytical_account_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(line_query, (
+                    so_id,
+                    line.get('product_id'),
+                    line.get('description'),
+                    line.get('quantity', 1),
+                    line.get('price', 0),
+                    line.get('subtotal', 0),
+                    line.get('analytical_account_id')
+                ))
+        
+        connection.commit()
+        
+        logger.info(f'✅ Sales order created: {so_id}')
+        return jsonify({'id': so_id, 'message': 'Sales order created'}), 201
+        
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        logger.error(f'❌ Error creating sales order: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            release_connection(connection)
+
+@app.route('/api/sales-orders/<int:so_id>', methods=['GET'])
+@token_required
+def get_sales_order(current_user, so_id):
+    """Get single sales order with lines"""
+    try:
+        user_id = current_user['id']
+        
+        # Get SO header
+        query = """
+        SELECT so.*, c.name as customer_name
+        FROM sales_orders so
+        LEFT JOIN contacts c ON so.customer_id = c.id
+        WHERE so.id = %s AND so.user_id = %s
+        """
+        
+        results = execute_query(query, (so_id, user_id))
+        
+        if not results:
+            return jsonify({'error': 'Sales order not found'}), 404
+            
+        so = results[0]
+        
+        # Get SO lines
+        lines_query = """
+        SELECT sol.*, p.name as product_name, aa.name as analytical_name
+        FROM sales_order_lines sol
+        LEFT JOIN products p ON sol.product_id = p.id
+        LEFT JOIN analytical_accounts aa ON sol.analytical_account_id = aa.id
+        WHERE sol.sales_order_id = %s
+        """
+        
+        so['lines'] = execute_query(lines_query, (so_id,))
+        
+        return jsonify(so), 200
+        
+    except Exception as e:
+        logger.error(f'❌ Error fetching sales order: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+logger.info("✅ Sales Orders API routes registered")
+
 # ===== API ROUTES =====
 
 @app.route('/api/')

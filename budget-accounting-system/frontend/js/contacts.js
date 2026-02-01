@@ -15,6 +15,7 @@
 // ===== CONFIGURATION =====
 const API_BASE_URL = 'http://127.0.0.1:5000/api';
 let allContacts = []; // Store all contacts for filtering
+let currentTab = 'customer'; // Track current tab
 
 // ===== AUTHENTICATION =====
 
@@ -40,11 +41,34 @@ function checkAuth() {
 // ===== DATA LOADING =====
 
 /**
- * Fetch contacts from backend and display in table
+ * Load contacts with optional filtering
+ * @param {string} type - Optional filter type
  */
-async function loadContacts() {
+function loadContacts(type = null) {
     console.log('📊 [CONTACTS.JS:35] Loading contacts...');
     
+    if (type) {
+        currentTab = type; // Save current tab
+        
+        // Update tab buttons
+        document.querySelectorAll('.nav-link').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        const activeTab = document.querySelector(`[data-filter="${type}"]`);
+        if (activeTab) {
+            activeTab.classList.add('active');
+        }
+    }
+    
+    fetchAndDisplayContacts(type);
+}
+
+/**
+ * Fetch and display contacts with optional filtering
+ * @param {string} filterType - Optional filter type
+ */
+async function fetchAndDisplayContacts(filterType = null) {
     const token = localStorage.getItem('token');
     
     if (!token) {
@@ -64,7 +88,10 @@ async function loadContacts() {
         if (data.success) {
             allContacts = data.contacts || [];
             console.log('✅ Loaded contacts:', allContacts.length);
-            displayContacts(allContacts);
+            
+            // Filter by type if specified
+            const filtered = filterType ? allContacts.filter(c => c.type === filterType) : allContacts;
+            displayContacts(filtered);
         } else {
             console.log('⚠️ No contacts found or error:', data.message);
             allContacts = [];
@@ -97,7 +124,7 @@ function displayContacts(contacts) {
             <tr>
                 <td colspan="7" class="text-center text-muted py-4">
                     <i class="fas fa-address-book fa-3x mb-3"></i>
-                    <p>No contacts found. Click "Add Contact" to create one.</p>
+                    <p>No ${currentTab}s found. Click "Add Contact" to create one.</p>
                 </td>
             </tr>
         `;
@@ -105,7 +132,7 @@ function displayContacts(contacts) {
     }
     
     tbody.innerHTML = contacts.map(contact => {
-        const typeBadge = contact.contact_type === 'customer' 
+        const typeBadge = contact.type === 'customer' 
             ? '<span class="badge bg-success">Customer</span>'
             : '<span class="badge bg-primary">Vendor</span>';
         
@@ -139,12 +166,14 @@ function displayContacts(contacts) {
 function filterContacts(type) {
     console.log('🔍 [CONTACTS.JS:80] Filtering by:', type);
     
+    currentTab = type; // Save current tab
+    
     let filtered;
     
     if (type === 'all') {
         filtered = allContacts;
     } else {
-        filtered = allContacts.filter(contact => contact.contact_type === type);
+        filtered = allContacts.filter(contact => contact.type === type);
     }
     
     displayContacts(filtered);
@@ -155,6 +184,71 @@ function filterContacts(type) {
     });
     
     document.querySelector(`#contactTabs .nav-link[data-filter="${type}"]`).classList.add('active');
+}
+
+/**
+ * Load contacts with optional filtering
+ * @param {string} type - Optional filter type
+ */
+function loadContacts(type = null) {
+    console.log('📊 [CONTACTS.JS:35] Loading contacts...');
+    
+    if (type) {
+        currentTab = type; // Save current tab
+        
+        // Update tab buttons
+        document.querySelectorAll('.nav-link').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        const activeTab = document.querySelector(`[data-filter="${type}"]`);
+        if (activeTab) {
+            activeTab.classList.add('active');
+        }
+    }
+    
+    fetchAndDisplayContacts(type);
+}
+
+/**
+ * Fetch and display contacts with optional filtering
+ * @param {string} filterType - Optional filter type
+ */
+async function fetchAndDisplayContacts(filterType = null) {
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+        console.log('❌ No token available');
+        return;
+    }
+    
+    try {
+        const response = await fetch(API_BASE_URL + '/contacts', {
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            allContacts = data.contacts || [];
+            console.log('✅ Loaded contacts:', allContacts.length);
+            
+            // Filter by type if specified
+            const filtered = filterType ? allContacts.filter(c => c.type === filterType) : allContacts;
+            displayContacts(filtered);
+        } else {
+            console.log('⚠️ No contacts found or error:', data.message);
+            allContacts = [];
+            displayContacts([]);
+        }
+        
+    } catch (error) {
+        console.error('❌ Error loading contacts:', error);
+        allContacts = [];
+        displayContacts([]);
+    }
 }
 
 // ===== MODAL FUNCTIONS =====
@@ -194,7 +288,7 @@ function openEditModal(contactId) {
     
     // Fill form fields
     document.getElementById('contactId').value = contact.id;
-    document.getElementById('contactType').value = contact.contact_type;
+    document.getElementById('contactType').value = contact.type;
     document.getElementById('contactName').value = contact.name;
     document.getElementById('contactEmail').value = contact.email || '';
     document.getElementById('contactPhone').value = contact.phone || '';
@@ -274,8 +368,8 @@ async function handleSaveContact(event) {
             const modal = bootstrap.Modal.getInstance(document.getElementById('contactModal'));
             modal.hide();
             
-            // Reload contacts
-            loadContacts();
+            // Reload contacts with current filter
+            loadContacts(currentTab);
         } else {
             console.error('❌ Error saving contact:', data.message);
             alert('Error: ' + (data.message || 'Failed to save contact'));
@@ -328,7 +422,7 @@ async function handleDeleteContact(contactId) {
         if (data.success) {
             console.log('✅ Contact deleted successfully');
             alert('Contact deleted successfully!');
-            loadContacts(); // Reload list
+            loadContacts(currentTab); // Reload list with current filter
         } else {
             console.error('❌ Error deleting contact:', data.message);
             alert('Error: ' + (data.message || 'Failed to delete contact'));
@@ -365,8 +459,8 @@ function initContacts() {
         console.error('❌ Error loading user info:', error);
     }
     
-    // Load contacts
-    loadContacts();
+    // Load contacts with default customer tab
+    loadContacts('customer');
     
     // Attach event listeners
     const addContactBtn = document.getElementById('addContactBtn');
@@ -415,6 +509,8 @@ function initContacts() {
 // Make functions available globally for onclick handlers
 window.openEditModal = openEditModal;
 window.handleDeleteContact = handleDeleteContact;
+window.loadContacts = loadContacts;
+window.filterContacts = filterContacts;
 
 // ===== EVENT LISTENERS =====
 document.addEventListener('DOMContentLoaded', initContacts);
