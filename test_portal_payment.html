@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Portal Payment</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        button { padding: 10px 15px; margin: 5px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Portal Payment Test</h1>
+    
+    <div class="test-section">
+        <h3>Step 1: Create Test Customer</h3>
+        <button onclick="createTestCustomer()">Create Test Customer</button>
+        <div id="customerResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Step 2: Create Test Invoice</h3>
+        <button onclick="createTestInvoice()">Create Test Invoice</button>
+        <div id="invoiceResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Step 3: Portal Login</h3>
+        <button onclick="portalLogin()">Login as Customer</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Step 4: Test PhonePe Payment</h3>
+        <button onclick="testPhonePePayment()">Test PhonePe API</button>
+        <div id="paymentResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Step 5: Open Portal Dashboard</h3>
+        <button onclick="openPortalDashboard()">Open Portal Dashboard</button>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5000';
+        let testCustomerId = null;
+        let testInvoiceId = null;
+        let portalToken = null;
+
+        async function createTestCustomer() {
+            try {
+                const response = await fetch(API_URL + '/api/contacts', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJlbWFpbCI6InRlc3RAdGVzdC5jb20iLCJleHAiOjE3Mzg0MzE2MzZ9.YjQzNzE4YzQtNzc5Ni00ODlkLTg5MjQtYWI1Njk4OGE2MDc2', // Use your admin token
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: 'Test Customer',
+                        email: 'customer@test.com',
+                        phone: '9876543210',
+                        contact_type: 'customer'
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    testCustomerId = data.id;
+                    document.getElementById('customerResult').innerHTML = `✅ Customer created: ID ${data.id}`;
+                } else {
+                    document.getElementById('customerResult').innerHTML = `❌ Error: ${data.error}`;
+                }
+            } catch (error) {
+                document.getElementById('customerResult').innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+
+        async function createTestInvoice() {
+            if (!testCustomerId) {
+                alert('Create customer first');
+                return;
+            }
+
+            try {
+                const response = await fetch(API_URL + '/api/customer-invoices', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJlbWFpbCI6InRlc3RAdGVzdC5jb20iLCJleHAiOjE3Mzg0MzE2MzZ9.YjQzNzE4YzQtNzc5Ni00ODlkLTg5MjQtYWI1Njk4OGE2MDc2', // Use your admin token
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        reference: 'TEST-INV-001',
+                        date: '2026-02-01',
+                        customer_id: testCustomerId,
+                        state: 'posted',
+                        total: 1000,
+                        paid_via_cash: 0,
+                        paid_via_bank: 0,
+                        paid_via_online: 0
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    testInvoiceId = data.id;
+                    document.getElementById('invoiceResult').innerHTML = `✅ Invoice created: ID ${data.id}`;
+                } else {
+                    document.getElementById('invoiceResult').innerHTML = `❌ Error: ${data.error}`;
+                }
+            } catch (error) {
+                document.getElementById('invoiceResult').innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+
+        async function portalLogin() {
+            try {
+                const response = await fetch(API_URL + '/api/portal/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'customer@test.com'
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    portalToken = data.token;
+                    localStorage.setItem('portal_token', data.token);
+                    localStorage.setItem('portal_contact', JSON.stringify(data.contact));
+                    document.getElementById('loginResult').innerHTML = `✅ Portal login successful: ${data.contact.name}`;
+                } else {
+                    document.getElementById('loginResult').innerHTML = `❌ Error: ${data.error}`;
+                }
+            } catch (error) {
+                document.getElementById('loginResult').innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+
+        async function testPhonePePayment() {
+            if (!portalToken || !testInvoiceId) {
+                alert('Complete previous steps first');
+                return;
+            }
+
+            try {
+                const response = await fetch(API_URL + '/api/phonepe/initiate', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + portalToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        invoice_id: testInvoiceId,
+                        amount: 1000
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    document.getElementById('paymentResult').innerHTML = `
+                        ✅ PhonePe payment initiated!<br>
+                        Transaction ID: ${data.merchant_transaction_id}<br>
+                        <a href="${data.payment_url}" target="_blank">Open PhonePe Simulator</a>
+                    `;
+                } else {
+                    document.getElementById('paymentResult').innerHTML = `❌ Error: ${data.error || 'Unknown error'}`;
+                }
+            } catch (error) {
+                document.getElementById('paymentResult').innerHTML = `❌ Error: ${error.message}`;
+            }
+        }
+
+        function openPortalDashboard() {
+            window.open('budget-accounting-system/frontend/portal-dashboard.html', '_blank');
+        }
+    </script>
+</body>
+</html>

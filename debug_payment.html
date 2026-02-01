@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Payment Issue</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+        .error { background: #f8d7da; color: #721c24; }
+        .success { background: #d4edda; color: #155724; }
+    </style>
+</head>
+<body>
+    <h1>Debug Payment Issue</h1>
+    
+    <div class="step">
+        <h3>Step 1: Check Server Connection</h3>
+        <button onclick="checkServer()">Test Server</button>
+        <div id="serverResult" class="result"></div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 2: Portal Login</h3>
+        <input type="email" id="emailInput" placeholder="Enter customer email" value="customer@test.com">
+        <button onclick="testPortalLogin()">Login</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 3: Get Invoices</h3>
+        <button onclick="getInvoices()">Get Invoices</button>
+        <div id="invoicesResult" class="result"></div>
+    </div>
+    
+    <div class="step">
+        <h3>Step 4: Test PhonePe API</h3>
+        <input type="number" id="invoiceIdInput" placeholder="Invoice ID" value="1">
+        <input type="number" id="amountInput" placeholder="Amount" value="1000">
+        <button onclick="testPhonePeAPI()">Test PhonePe</button>
+        <div id="phonepeResult" class="result"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5000';
+        let portalToken = null;
+
+        async function checkServer() {
+            try {
+                const response = await fetch(API_URL + '/api/health');
+                const data = await response.json();
+                document.getElementById('serverResult').innerHTML = `
+                    <div class="success">✅ Server is running: ${data.status}</div>
+                `;
+            } catch (error) {
+                document.getElementById('serverResult').innerHTML = `
+                    <div class="error">❌ Server error: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function testPortalLogin() {
+            const email = document.getElementById('emailInput').value;
+            try {
+                const response = await fetch(API_URL + '/api/portal/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    portalToken = data.token;
+                    localStorage.setItem('portal_token', data.token);
+                    localStorage.setItem('portal_contact', JSON.stringify(data.contact));
+                    document.getElementById('loginResult').innerHTML = `
+                        <div class="success">✅ Login successful: ${data.contact.name}</div>
+                        <div>Token: ${data.token.substring(0, 50)}...</div>
+                    `;
+                } else {
+                    document.getElementById('loginResult').innerHTML = `
+                        <div class="error">❌ Login failed: ${data.error}</div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('loginResult').innerHTML = `
+                    <div class="error">❌ Login error: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function getInvoices() {
+            if (!portalToken) {
+                alert('Please login first');
+                return;
+            }
+
+            try {
+                const response = await fetch(API_URL + '/api/portal/invoices', {
+                    headers: { 'Authorization': 'Bearer ' + portalToken }
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('invoicesResult').innerHTML = `
+                        <div class="success">✅ Found ${data.length} invoices</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    document.getElementById('invoicesResult').innerHTML = `
+                        <div class="error">❌ Error: ${data.error}</div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('invoicesResult').innerHTML = `
+                    <div class="error">❌ Error: ${error.message}</div>
+                `;
+            }
+        }
+
+        async function testPhonePeAPI() {
+            if (!portalToken) {
+                alert('Please login first');
+                return;
+            }
+
+            const invoiceId = document.getElementById('invoiceIdInput').value;
+            const amount = document.getElementById('amountInput').value;
+
+            try {
+                console.log('Testing PhonePe API...');
+                console.log('Invoice ID:', invoiceId);
+                console.log('Amount:', amount);
+                console.log('Token:', portalToken);
+
+                const response = await fetch(API_URL + '/api/phonepe/initiate', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + portalToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        invoice_id: parseInt(invoiceId),
+                        amount: parseFloat(amount)
+                    })
+                });
+
+                console.log('Response status:', response.status);
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (response.ok && data.success) {
+                    document.getElementById('phonepeResult').innerHTML = `
+                        <div class="success">✅ PhonePe API Success!</div>
+                        <div><strong>Transaction ID:</strong> ${data.merchant_transaction_id}</div>
+                        <div><strong>Payment URL:</strong> <a href="${data.payment_url}" target="_blank">${data.payment_url}</a></div>
+                        <button onclick="window.open('${data.payment_url}', '_blank')">Open PhonePe Simulator</button>
+                    `;
+                } else {
+                    document.getElementById('phonepeResult').innerHTML = `
+                        <div class="error">❌ PhonePe API Error: ${data.error || 'Unknown error'}</div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('phonepeResult').innerHTML = `
+                    <div class="error">❌ PhonePe API Error: ${error.message}</div>
+                `;
+            }
+        }
+
+        // Auto-load token if exists
+        window.onload = function() {
+            const token = localStorage.getItem('portal_token');
+            if (token) {
+                portalToken = token;
+                document.getElementById('loginResult').innerHTML = `
+                    <div class="success">✅ Using existing token</div>
+                `;
+            }
+        };
+    </script>
+</body>
+</html>

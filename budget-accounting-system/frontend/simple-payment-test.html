@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Payment Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 50px; }
+        .test-card { max-width: 600px; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card test-card">
+            <div class="card-header bg-primary text-white">
+                <h3>Simple PhonePe Payment Test</h3>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label>Invoice ID:</label>
+                    <input type="number" id="invoiceId" class="form-control" value="1">
+                </div>
+                
+                <div class="mb-3">
+                    <label>Amount (₹):</label>
+                    <input type="number" id="amount" class="form-control" value="1000">
+                </div>
+                
+                <button class="btn btn-primary btn-lg w-100" onclick="payNow()">
+                    Pay with PhonePe UAT
+                </button>
+                
+                <div id="result" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5000';
+
+        async function payNow() {
+            const invoiceId = document.getElementById('invoiceId').value;
+            const amount = document.getElementById('amount').value;
+            const resultDiv = document.getElementById('result');
+
+            resultDiv.innerHTML = '<div class="alert alert-info">Processing...</div>';
+
+            try {
+                // Direct API call without authentication for testing
+                const response = await fetch(API_URL + '/api/phonepe/test-payment', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        invoice_id: parseInt(invoiceId),
+                        amount: parseFloat(amount)
+                    })
+                });
+
+                const data = await response.json();
+                console.log('Response:', data);
+
+                if (data.success && data.payment_url) {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <strong>Success!</strong> Redirecting to PhonePe...
+                            <br>Transaction ID: ${data.merchant_transaction_id}
+                        </div>
+                    `;
+                    
+                    // Redirect to PhonePe simulator
+                    setTimeout(() => {
+                        window.location.href = data.payment_url;
+                    }, 2000);
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <strong>Error:</strong> ${data.error || 'Payment failed'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

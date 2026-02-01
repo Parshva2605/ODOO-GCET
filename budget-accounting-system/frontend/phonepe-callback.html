@@ -2,150 +2,269 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Payment Status - Shiv Furniture</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root {
-            --primary-brown: #914F1E;
-            --secondary-tan: #DEAC80;
-            --bg-cream: #F7DCB9;
-        }
         body {
-            background: linear-gradient(135deg, var(--primary-brown) 0%, var(--secondary-tan) 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
         }
         .status-card {
             background: white;
+            padding: 40px;
             border-radius: 20px;
-            padding: 50px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            text-align: center;
             max-width: 500px;
             width: 90%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            text-align: center;
+        }
+        .status-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        .status-success { color: #28a745; }
+        .status-pending { color: #ffc107; }
+        .status-failed { color: #dc3545; }
+        .status-loading { color: #6c757d; }
+        .btn-return {
+            background: #5f259f;
+            border: none;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 20px;
+        }
+        .btn-return:hover {
+            background: #4a1d7d;
+            color: white;
+        }
+        .transaction-details {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
         }
     </style>
 </head>
 <body>
     <div class="status-card">
-        <div id="processing">
-            <div class="spinner-border text-primary mb-3" style="width: 4rem; height: 4rem;"></div>
-            <h3>Verifying Payment...</h3>
-            <p class="text-muted">Please wait while we confirm your transaction</p>
-        </div>
-        
-        <div id="success" style="display:none;">
-            <div class="text-success mb-4">
-                <i class="fas fa-check-circle fa-5x"></i>
+        <div id="statusContent">
+            <div class="status-icon status-loading">
+                <i class="fas fa-spinner fa-spin"></i>
             </div>
-            <h2 class="text-success mb-3">Payment Successful!</h2>
-            <p class="text-muted mb-4">Your payment has been received and processed</p>
-            <div class="alert alert-info">
-                <strong>Transaction ID:</strong> <span id="txnId"></span>
-            </div>
-            <a href="portal-dashboard.html" class="btn btn-primary btn-lg mt-3">
-                <i class="fas fa-home"></i> Back to Dashboard
-            </a>
-        </div>
-        
-        <div id="failed" style="display:none;">
-            <div class="text-danger mb-4">
-                <i class="fas fa-times-circle fa-5x"></i>
-            </div>
-            <h2 class="text-danger mb-3">Payment Failed</h2>
-            <p class="text-muted mb-4" id="errorMsg">Your payment could not be processed</p>
-            <a href="portal-dashboard.html" class="btn btn-primary btn-lg mt-3">
-                <i class="fas fa-arrow-left"></i> Back to Dashboard
-            </a>
-        </div>
-        
-        <div id="pending" style="display:none;">
-            <div class="text-warning mb-4">
-                <i class="fas fa-clock fa-5x"></i>
-            </div>
-            <h2 class="text-warning mb-3">Payment Pending</h2>
-            <p class="text-muted mb-4">Your payment is being processed</p>
-            <a href="portal-dashboard.html" class="btn btn-primary btn-lg mt-3">
-                <i class="fas fa-home"></i> Back to Dashboard
-            </a>
+            <h2>Processing Payment...</h2>
+            <p class="text-muted">Please wait while we verify your payment status</p>
         </div>
     </div>
 
     <script>
         const API_URL = 'http://127.0.0.1:5000';
         
-        // Get transaction details from URL or localStorage
-        const urlParams = new URLSearchParams(window.location.search);
-        const txnId = urlParams.get('txn_id') || localStorage.getItem('phonepe_txn_id');
-        const invoiceId = urlParams.get('invoice_id') || localStorage.getItem('phonepe_invoice_id');
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                invoice_id: params.get('invoice_id'),
+                txn_id: params.get('txn_id'),
+                status: params.get('status') || 'unknown'
+            };
+        }
         
-        console.log('Callback - TxnID:', txnId, 'InvoiceID:', invoiceId);
+        function getPortalToken() {
+            return localStorage.getItem('portal_token');
+        }
         
-        async function verifyPayment() {
-            if (!txnId) {
-                showError('Transaction ID not found');
+        async function verifyPaymentStatus() {
+            const params = getUrlParams();
+            
+            if (!params.txn_id) {
+                showError('Invalid payment callback - missing transaction ID');
                 return;
             }
             
             try {
-                const token = localStorage.getItem('portal_token');
+                // Show processing status
+                showProcessing(params);
                 
-                const response = await fetch(`${API_URL}/api/phonepe/verify/${txnId}`, {
-                    headers: {
-                        'Authorization': 'Bearer ' + token
-                    }
-                });
+                // Wait a moment for PhonePe to process
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                // Verify payment status with backend (NO AUTH REQUIRED)
+                // Pass invoice_id as query parameter
+                const response = await fetch(`${API_URL}/api/phonepe/verify-test/${params.txn_id}?invoice_id=${params.invoice_id}`);
                 
                 const data = await response.json();
                 
-                console.log('Payment Status:', data);
+                console.log('Payment verification response:', data);
                 
                 if (data.success && data.code === 'PAYMENT_SUCCESS') {
-                    showSuccess(txnId);
+                    showSuccess(params, data);
                 } else if (data.code === 'PAYMENT_PENDING') {
-                    showPending();
+                    showPending(params, data);
                 } else {
-                    showError(data.message || 'Payment verification failed');
+                    showFailed(params, data);
                 }
                 
             } catch (error) {
                 console.error('Verification error:', error);
-                showError('Unable to verify payment status');
+                showError('Failed to verify payment status: ' + error.message);
             }
         }
         
-        function showSuccess(txnId) {
-            document.getElementById('processing').style.display = 'none';
-            document.getElementById('success').style.display = 'block';
-            document.getElementById('txnId').textContent = txnId;
+        function showProcessing(params) {
+            document.getElementById('statusContent').innerHTML = `
+                <div class="status-icon status-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+                <h2>Verifying Payment...</h2>
+                <p class="text-muted">Checking payment status with PhonePe</p>
+                <div class="transaction-details">
+                    <div class="detail-row">
+                        <span><strong>Transaction ID:</strong></span>
+                        <span>${params.txn_id}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span><strong>Invoice ID:</strong></span>
+                        <span>${params.invoice_id}</span>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function showSuccess(params, data) {
+            document.getElementById('statusContent').innerHTML = `
+                <div class="status-icon status-success">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h2 class="text-success">Payment Successful!</h2>
+                <p class="text-muted">Your payment has been processed successfully</p>
+                <div class="transaction-details">
+                    <div class="detail-row">
+                        <span><strong>Transaction ID:</strong></span>
+                        <span>${params.txn_id}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span><strong>Invoice ID:</strong></span>
+                        <span>${params.invoice_id}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span><strong>PhonePe Transaction:</strong></span>
+                        <span>${data.data?.transactionId || 'N/A'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span><strong>Amount:</strong></span>
+                        <span>₹${(data.data?.amount / 100).toFixed(2) || 'N/A'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span><strong>Status:</strong></span>
+                        <span class="text-success">PAID</span>
+                    </div>
+                </div>
+                <a href="portal-dashboard.html" class="btn-return">
+                    <i class="fas fa-arrow-left"></i> Return to Dashboard
+                </a>
+            `;
             
-            // Clear stored data
-            localStorage.removeItem('phonepe_txn_id');
-            localStorage.removeItem('phonepe_invoice_id');
-            
-            // Auto redirect after 3 seconds
+            // Auto redirect after 10 seconds
             setTimeout(() => {
                 window.location.href = 'portal-dashboard.html';
-            }, 3000);
+            }, 10000);
+        }
+        
+        function showPending(params, data) {
+            document.getElementById('statusContent').innerHTML = `
+                <div class="status-icon status-pending">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <h2 class="text-warning">Payment Pending</h2>
+                <p class="text-muted">Your payment is being processed. Please check back later.</p>
+                <div class="transaction-details">
+                    <div class="detail-row">
+                        <span><strong>Transaction ID:</strong></span>
+                        <span>${params.txn_id}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span><strong>Invoice ID:</strong></span>
+                        <span>${params.invoice_id}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span><strong>Status:</strong></span>
+                        <span class="text-warning">PENDING</span>
+                    </div>
+                </div>
+                <a href="portal-dashboard.html" class="btn-return">
+                    <i class="fas fa-arrow-left"></i> Return to Dashboard
+                </a>
+            `;
+        }
+        
+        function showFailed(params, data) {
+            document.getElementById('statusContent').innerHTML = `
+                <div class="status-icon status-failed">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <h2 class="text-danger">Payment Failed</h2>
+                <p class="text-muted">Your payment could not be processed. Please try again.</p>
+                <div class="transaction-details">
+                    <div class="detail-row">
+                        <span><strong>Transaction ID:</strong></span>
+                        <span>${params.txn_id}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span><strong>Invoice ID:</strong></span>
+                        <span>${params.invoice_id}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span><strong>Status:</strong></span>
+                        <span class="text-danger">FAILED</span>
+                    </div>
+                    <div class="detail-row">
+                        <span><strong>Error:</strong></span>
+                        <span>${data.message || 'Payment failed'}</span>
+                    </div>
+                </div>
+                <a href="portal-dashboard.html" class="btn-return">
+                    <i class="fas fa-arrow-left"></i> Return to Dashboard
+                </a>
+            `;
         }
         
         function showError(message) {
-            document.getElementById('processing').style.display = 'none';
-            document.getElementById('failed').style.display = 'block';
-            document.getElementById('errorMsg').textContent = message;
+            document.getElementById('statusContent').innerHTML = `
+                <div class="status-icon status-failed">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h2 class="text-danger">Error</h2>
+                <p class="text-muted">${message}</p>
+                <a href="portal-dashboard.html" class="btn-return">
+                    <i class="fas fa-arrow-left"></i> Return to Dashboard
+                </a>
+            `;
         }
         
-        function showPending() {
-            document.getElementById('processing').style.display = 'none';
-            document.getElementById('pending').style.display = 'block';
-        }
-        
-        // Verify payment on page load
-        setTimeout(verifyPayment, 1500);
+        // Start verification when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('PhonePe callback page loaded');
+            verifyPaymentStatus();
+        });
     </script>
 </body>
 </html>

@@ -11,20 +11,7 @@
             padding: 0.25rem 0.5rem;
             font-size: 0.875rem;
         }
-        #qrCodeContainer {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            flex-direction: column;
-        }
-        #qrCodeContainer canvas {
-            margin: 0 auto;
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
-            padding: 10px;
-            background: white;
-        }
+
         .btn-purple {
             background-color: #5f259f;
             border-color: #5f259f;
@@ -60,12 +47,7 @@
             max-width: 250px;
             margin: 0 auto;
         }
-        .qr-instructions {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 15px;
-            margin: 15px 0;
-        }
+
     </style>
 </head>
 <body>
@@ -128,55 +110,23 @@
                         <!-- Payment Method Tabs -->
                         <ul class="nav nav-tabs justify-content-center mb-4" role="tablist">
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#qrTab" type="button">
-                                    <i class="fas fa-qrcode"></i> QR Payment
-                                </button>
-                            </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#phonePeTab" type="button">
+                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#phonePeTab" type="button">
                                     <i class="fas fa-mobile-alt"></i> PhonePe
                                 </button>
                             </li>
                         </ul>
                         
                         <div class="tab-content">
-                            <!-- QR Code Tab -->
-                            <div class="tab-pane fade show active" id="qrTab">
-                                <div class="qr-instructions">
-                                    <h6><i class="fas fa-mobile-alt text-primary"></i> How to Pay with QR Code:</h6>
-                                    <ol class="small text-start mb-0">
-                                        <li>Scan the QR code below with your phone camera</li>
-                                        <li>Choose your payment result (Success/Pending/Failed)</li>
-                                        <li>Click Continue to complete payment</li>
-                                        <li>Return here to see updated status</li>
-                                    </ol>
-                                </div>
-                                
-                                <div id="qrCodeContainer">
-                                    <div class="text-muted">
-                                        <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
-                                        <div>Generating QR Code...</div>
-                                    </div>
-                                </div>
-                                
-                                <div class="mt-3">
-                                    <p class="fw-bold">UPI ID: <span id="upiId">shivfurniture@paytm</span></p>
-                                    <p class="text-muted small">
-                                        <i class="fas fa-shield-alt text-success"></i> Secure payment simulation for testing
-                                    </p>
-                                </div>
-                            </div>
-                            
                             <!-- PhonePe Tab -->
-                            <div class="tab-pane fade" id="phonePeTab">
+                            <div class="tab-pane fade show active" id="phonePeTab">
                                 <div class="phonepe-container">
                                     <!-- PhonePe Header -->
                                     <div class="phonepe-header bg-purple text-white p-3 rounded-top mb-3">
                                         <div class="d-flex align-items-center justify-content-center">
                                             <i class="fas fa-mobile-alt fa-2x me-3"></i>
                                             <div>
-                                                <h5 class="mb-0">PhonePe Payment</h5>
-                                                <small>Secure & Fast Payment Gateway</small>
+                                                <h5 class="mb-0">PhonePe UAT Payment</h5>
+                                                <small>Official PhonePe Test Environment</small>
                                             </div>
                                         </div>
                                     </div>
@@ -187,10 +137,12 @@
                                             <div class="col-6">
                                                 <small class="text-muted">Pay to</small>
                                                 <div class="fw-bold">Shiv Furniture</div>
+                                                <small class="text-muted">Merchant ID: M236CBTE7WCEB</small>
                                             </div>
                                             <div class="col-6">
                                                 <small class="text-muted">Amount</small>
                                                 <div class="fw-bold text-success">₹<span id="phonePeAmount"></span></div>
+                                                <small class="text-muted">UAT Test Mode</small>
                                             </div>
                                         </div>
                                     </div>
@@ -199,25 +151,27 @@
                                     <div class="text-center mb-3">
                                         <div class="d-grid gap-2 mb-3">
                                             <button class="btn btn-purple btn-lg" onclick="openPhonePe()">
-                                                <i class="fas fa-credit-card"></i> Pay with PhonePe
+                                                <i class="fas fa-qrcode"></i> Pay with PhonePe UAT
                                             </button>
                                         </div>
                                         
                                         <!-- Payment Instructions -->
                                         <div class="payment-steps">
                                             <small class="text-muted">
-                                                <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Click "Pay with PhonePe" button</div>
-                                                <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> You'll be redirected to PhonePe</div>
-                                                <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Complete payment securely</div>
+                                                <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Click "Pay with PhonePe UAT" button</div>
+                                                <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Redirected to PhonePe UAT simulator</div>
+                                                <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> QR code generated on PhonePe's page</div>
+                                                <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Scan QR or complete test payment</div>
                                                 <div><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Return here automatically</div>
                                             </small>
                                         </div>
                                     </div>
                                     
-                                    <!-- Test Mode Notice -->
+                                    <!-- UAT Mode Notice -->
                                     <div class="alert alert-info alert-sm">
                                         <i class="fas fa-info-circle"></i> 
-                                        <strong>Test Mode:</strong> Using PhonePe Sandbox Environment
+                                        <strong>UAT Mode:</strong> Using your PhonePe UAT credentials<br>
+                                        <small>QR codes will be generated on PhonePe's official simulator</small>
                                     </div>
                                 </div>
                             </div>
@@ -239,7 +193,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="js/portal-dashboard.js"></script>
 </body>
 </html>

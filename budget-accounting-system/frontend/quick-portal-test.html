@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Quick Portal Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 50px; background: #f5f5f5; }
+        .test-card { max-width: 800px; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card test-card">
+            <div class="card-header bg-primary text-white">
+                <h3>Quick Portal Payment Test</h3>
+            </div>
+            <div class="card-body">
+                <!-- Step 1: Login -->
+                <div class="mb-4">
+                    <h5>Step 1: Login (or Skip)</h5>
+                    <div class="input-group mb-2">
+                        <input type="email" id="email" class="form-control" placeholder="Customer email" value="customer@test.com">
+                        <button class="btn btn-primary" onclick="login()">Login</button>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="skipLogin()">Skip Login (Use Test Mode)</button>
+                    <div id="loginStatus" class="mt-2"></div>
+                </div>
+
+                <hr>
+
+                <!-- Step 2: Payment -->
+                <div class="mb-4">
+                    <h5>Step 2: Make Payment</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Invoice ID:</label>
+                            <input type="number" id="invoiceId" class="form-control" value="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label>Amount (₹):</label>
+                            <input type="number" id="amount" class="form-control" value="1000">
+                        </div>
+                    </div>
+                    <button class="btn btn-success btn-lg w-100 mt-3" onclick="payNow()">
+                        <i class="fas fa-qrcode"></i> Pay with PhonePe UAT
+                    </button>
+                    <div id="paymentStatus" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:5000';
+        let useTestMode = false;
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const statusDiv = document.getElementById('loginStatus');
+            
+            statusDiv.innerHTML = '<div class="alert alert-info">Logging in...</div>';
+
+            try {
+                const response = await fetch(API_URL + '/api/portal/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    localStorage.setItem('portal_token', data.token);
+                    localStorage.setItem('portal_contact', JSON.stringify(data.contact));
+                    useTestMode = false;
+                    statusDiv.innerHTML = `<div class="alert alert-success">✅ Logged in as: ${data.contact.name}</div>`;
+                } else {
+                    statusDiv.innerHTML = `<div class="alert alert-danger">❌ Login failed: ${data.error}</div>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="alert alert-danger">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        function skipLogin() {
+            useTestMode = true;
+            document.getElementById('loginStatus').innerHTML = '<div class="alert alert-warning">⚠️ Using Test Mode (No Authentication)</div>';
+        }
+
+        async function payNow() {
+            const invoiceId = document.getElementById('invoiceId').value;
+            const amount = document.getElementById('amount').value;
+            const statusDiv = document.getElementById('paymentStatus');
+
+            statusDiv.innerHTML = '<div class="alert alert-info">Processing payment...</div>';
+
+            try {
+                let response;
+                
+                if (useTestMode) {
+                    // Use test endpoint without authentication
+                    response = await fetch(API_URL + '/api/phonepe/test-payment', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            invoice_id: parseInt(invoiceId),
+                            amount: parseFloat(amount)
+                        })
+                    });
+                } else {
+                    // Use authenticated endpoint
+                    const token = localStorage.getItem('portal_token');
+                    if (!token) {
+                        statusDiv.innerHTML = '<div class="alert alert-danger">❌ Please login first or use Test Mode</div>';
+                        return;
+                    }
+
+                    response = await fetch(API_URL + '/api/phonepe/initiate', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + token,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            invoice_id: parseInt(invoiceId),
+                            amount: parseFloat(amount)
+                        })
+                    });
+                }
+
+                const data = await response.json();
+                console.log('Payment response:', data);
+
+                if (data.success && data.payment_url) {
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <strong>✅ Success!</strong> Redirecting to PhonePe UAT Simulator...<br>
+                            <small>Transaction ID: ${data.merchant_transaction_id}</small>
+                        </div>
+                    `;
+                    
+                    // Redirect to PhonePe simulator
+                    setTimeout(() => {
+                        window.location.href = data.payment_url;
+                    }, 2000);
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <strong>❌ Payment Failed:</strong> ${data.error || 'Unknown error'}<br>
+                            <small>Response: ${JSON.stringify(data)}</small>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <strong>❌ Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Check if already logged in
+        window.onload = function() {
+            const token = localStorage.getItem('portal_token');
+            const contact = localStorage.getItem('portal_contact');
+            
+            if (token && contact) {
+                const contactData = JSON.parse(contact);
+                document.getElementById('loginStatus').innerHTML = `
+                    <div class="alert alert-success">✅ Already logged in as: ${contactData.name}</div>
+                `;
+            }
+        };
+    </script>
+</body>
+</html>

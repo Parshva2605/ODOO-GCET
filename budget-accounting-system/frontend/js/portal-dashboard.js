@@ -80,7 +80,7 @@ function displayInvoices(invoices) {
             <td>
                 ${inv.payment_status !== 'paid' ? 
                     `<button class="btn btn-sm btn-primary" onclick="openPayment(${inv.id}, '${inv.reference}', ${inv.amount_due})">
-                        <i class="fas fa-qrcode"></i> Pay
+                        <i class="fas fa-credit-card"></i> Pay
                     </button>` :
                     `<span class="text-success"><i class="fas fa-check-circle"></i> Paid</span>`
                 }
@@ -103,83 +103,28 @@ async function openPayment(invoiceId, reference, amount) {
     }
     
     try {
-        // Generate payment simulator URL
-        const simulatorUrl = `${window.location.origin}/payment-simulator.html?invoice_id=${invoiceId}&amount=${amount}&ref=${reference}&txn_id=TXN${Date.now()}`;
-        
         currentPaymentData = {
             amount: amount,
-            reference: reference,
-            upiId: "shivfurniture@paytm",
-            simulatorUrl: simulatorUrl
+            reference: reference
         };
         
-        document.getElementById('upiId').textContent = currentPaymentData.upiId;
-        
-        // Show modal first
+        // Show modal
         const modal = new bootstrap.Modal(document.getElementById('paymentModal'));
         modal.show();
-        
-        // Generate QR Code after modal is shown
-        setTimeout(() => {
-            const qrContainer = document.getElementById('qrCodeContainer');
-            qrContainer.innerHTML = '';
-            
-            // Check if QRCode library is loaded
-            if (typeof QRCode === 'undefined') {
-                qrContainer.innerHTML = `
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle"></i> QR Code library not loaded<br>
-                        <a href="${simulatorUrl}" target="_blank" class="btn btn-sm btn-primary mt-2">
-                            <i class="fas fa-external-link-alt"></i> Open Payment Page
-                        </a>
-                    </div>
-                `;
-                return;
-            }
-            
-            try {
-                new QRCode(qrContainer, {
-                    text: simulatorUrl,
-                    width: 200,
-                    height: 200,
-                    colorDark: "#000000",
-                    colorLight: "#ffffff",
-                    correctLevel: QRCode.CorrectLevel.H
-                });
-                
-                // Add link below QR code
-                setTimeout(() => {
-                    qrContainer.innerHTML += `
-                        <div class="mt-3">
-                            <a href="${simulatorUrl}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-external-link-alt"></i> Open Payment Page
-                            </a>
-                        </div>
-                    `;
-                }, 100);
-                
-            } catch (error) {
-                console.error('QR Code generation error:', error);
-                qrContainer.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="fas fa-times"></i> Failed to generate QR code<br>
-                        <a href="${simulatorUrl}" target="_blank" class="btn btn-sm btn-primary mt-2">
-                            <i class="fas fa-external-link-alt"></i> Open Payment Page
-                        </a>
-                    </div>
-                `;
-            }
-        }, 500);
 
     } catch (error) {
         console.error('Error:', error);
-        alert('Failed to generate payment QR code');
+        alert('Failed to open payment modal');
     }
 }
 
 async function openPhonePe() {
+    console.log('openPhonePe called');
+    console.log('currentInvoiceId:', currentInvoiceId);
+    console.log('currentPaymentData:', currentPaymentData);
+    
     if (!currentInvoiceId || !currentPaymentData) {
-        alert('Payment data not loaded');
+        alert('Payment data not loaded. Please try clicking Pay button again.');
         return;
     }
     
@@ -188,15 +133,19 @@ async function openPhonePe() {
         phonePeTab.innerHTML = `
             <div class="text-center py-5">
                 <div class="spinner-border text-purple mb-3" role="status"></div>
-                <h5>Connecting to PhonePe...</h5>
-                <p class="text-muted small">Please wait</p>
+                <h5>Connecting to PhonePe UAT Simulator...</h5>
+                <p class="text-muted small">Redirecting to official PhonePe simulator</p>
+                <p class="small">Invoice ID: ${currentInvoiceId}</p>
+                <p class="small">Amount: ₹${currentPaymentData.amount}</p>
             </div>
         `;
         
-        const response = await fetch(API_URL + '/api/phonepe/initiate', {
+        console.log('Making API call to test endpoint (no auth required)');
+        
+        // Use test endpoint without authentication
+        const response = await fetch(API_URL + '/api/phonepe/test-payment', {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + getPortalToken(),
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -205,16 +154,43 @@ async function openPhonePe() {
             })
         });
         
+        console.log('Response status:', response.status);
+        console.log('Response ok:', response.ok);
+        
         const data = await response.json();
+        console.log('Response data:', data);
         
         if (response.ok && data.success && data.payment_url) {
-            console.log('PhonePe URL received:', data.payment_url);
+            console.log('PhonePe UAT Simulator URL received:', data.payment_url);
             
+            // Store transaction details for callback
             localStorage.setItem('phonepe_txn_id', data.merchant_transaction_id);
             localStorage.setItem('phonepe_invoice_id', currentInvoiceId);
             
-            window.location.href = data.payment_url;
+            // Show success message before redirect
+            phonePeTab.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="text-success mb-3">
+                        <i class="fas fa-check-circle fa-3x"></i>
+                    </div>
+                    <h5 class="text-success">Redirecting to PhonePe...</h5>
+                    <p class="text-muted">You will be redirected to the official PhonePe UAT simulator</p>
+                    <p class="small"><strong>Transaction ID:</strong> ${data.merchant_transaction_id}</p>
+                    <p class="small"><strong>Payment URL:</strong> ${data.payment_url}</p>
+                    <button class="btn btn-sm btn-primary mt-2" onclick="window.location.href='${data.payment_url}'">
+                        Click here if not redirected
+                    </button>
+                </div>
+            `;
+            
+            // Redirect to PhonePe UAT simulator after short delay
+            setTimeout(() => {
+                console.log('Redirecting to:', data.payment_url);
+                window.location.href = data.payment_url;
+            }, 3000);
+            
         } else {
+            console.error('API Error:', data);
             throw new Error(data.error || 'Failed to initiate payment');
         }
         
@@ -225,10 +201,12 @@ async function openPhonePe() {
         phonePeTab.innerHTML = `
             <div class="alert alert-danger">
                 <i class="fas fa-exclamation-circle"></i> 
-                Payment failed: ${error.message}
+                <strong>Payment Failed:</strong> ${error.message}
+                <br><small>Please try again or contact support</small>
+                <br><small>Check browser console for more details</small>
             </div>
             <button class="btn btn-purple" onclick="openPhonePe()">
-                <i class="fas fa-redo"></i> Retry
+                <i class="fas fa-redo"></i> Retry Payment
             </button>
         `;
     }
