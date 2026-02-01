@@ -100,6 +100,37 @@ html {
   transform: scale(0.98);
 }
 
+.btn-secondary {
+  background-color: #6c757d !important;
+  border: none !important;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background-color: #5a6268 !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+}
+
+/* Modal Footer Buttons - Make them equal size */
+.modal-footer .btn {
+  min-width: 120px;
+  padding: 10px 20px;
+  font-size: 15px;
+}
+
+.modal-footer .btn-secondary {
+  background-color: #6c757d !important;
+}
+
+.modal-footer .btn-primary {
+  background-color: var(--primary-color) !important;
+}
+
 /* ===== FORMS ===== */
 .form-control {
   border: 1px solid #CED4DA;

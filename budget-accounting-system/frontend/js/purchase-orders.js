@@ -234,7 +234,11 @@ function addPOLine() {
     const lineId = 'line-' + lineCounter;
 
     const lineHtml = `
-        <div class="card mb-2" id="${lineId}">
+        <div class="card mb-2" id="${lineId}" style="position: relative;">
+            <button type="button" class="btn btn-sm btn-close" onclick="removeLine('${lineId}')" 
+                    style="position: absolute; top: 10px; right: 10px; z-index: 10;" 
+                    title="Remove line">
+            </button>
             <div class="card-body">
                 <div class="row g-2">
                     <div class="col-md-3">
@@ -258,9 +262,6 @@ function addPOLine() {
                     <div class="col-md-2">
                         <label class="form-label">Subtotal</label>
                         <input type="number" class="form-control line-subtotal" id="subtotal-${lineCounter}" value="0" readonly>
-                        <button type="button" class="btn btn-sm btn-outline-danger mt-1" onclick="removeLine('${lineId}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
                     </div>
                 </div>
                 <div class="row g-2 mt-1">
