@@ -507,6 +507,229 @@ def get_sales_order(current_user, so_id):
 
 logger.info("✅ Sales Orders API routes registered")
 
+# ============================================
+# CUSTOMER INVOICES API
+# ============================================
+
+@app.route('/api/customer-invoices', methods=['GET'])
+@token_required
+def get_customer_invoices(current_user):
+    """Get all customer invoices for current user"""
+    try:
+        user_id = current_user['id']
+        
+        query = """
+        SELECT 
+            ci.id, ci.reference, ci.date, ci.customer_id, ci.state, ci.total, ci.payment_status,
+            ci.paid_via_cash, ci.paid_via_bank, ci.paid_via_online, ci.amount_due,
+            c.name as customer_name
+        FROM customer_invoices ci
+        LEFT JOIN contacts c ON ci.customer_id = c.id
+        WHERE ci.user_id = %s
+        ORDER BY ci.date DESC, ci.id DESC
+        """
+        
+        results = execute_query(query, (user_id,))
+        
+        logger.info(f'✅ Retrieved {len(results)} customer invoices')
+        return jsonify(results), 200
+        
+    except Exception as e:
+        logger.error(f'❌ Error fetching customer invoices: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/customer-invoices', methods=['POST'])
+@token_required
+def create_customer_invoice(current_user):
+    """Create new customer invoice with payment tracking"""
+    connection = None
+    cursor = None
+    try:
+        user_id = current_user['id']
+        data = request.get_json()
+        
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        # Calculate totals
+        total = float(data.get('total', 0))
+        paid_cash = float(data.get('paid_via_cash', 0))
+        paid_bank = float(data.get('paid_via_bank', 0))
+        paid_online = float(data.get('paid_via_online', 0))
+        amount_due = total - (paid_cash + paid_bank + paid_online)
+        
+        # Determine payment status
+        if amount_due <= 0:
+            payment_status = 'paid'
+        elif paid_cash + paid_bank + paid_online > 0:
+            payment_status = 'partial'
+        else:
+            payment_status = 'not_paid'
+        
+        # Insert customer invoice
+        query = """
+        INSERT INTO customer_invoices 
+        (user_id, reference, date, customer_id, state, total,
+         paid_via_cash, paid_via_bank, paid_via_online, amount_due, payment_status)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """
+        
+        cursor.execute(query, (
+            user_id,
+            data['reference'],
+            data['date'],
+            data['customer_id'],
+            data.get('state', 'draft'),
+            total,
+            paid_cash,
+            paid_bank,
+            paid_online,
+            amount_due,
+            payment_status
+        ))
+        
+        invoice_id = cursor.fetchone()[0]
+        
+        # Insert invoice lines
+        if 'lines' in data:
+            for line in data['lines']:
+                line_query = """
+                INSERT INTO customer_invoice_lines 
+                (customer_invoice_id, product_id, description, quantity, price, subtotal, analytical_account_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(line_query, (
+                    invoice_id,
+                    line.get('product_id'),
+                    line.get('description'),
+                    line.get('quantity', 1),
+                    line.get('price', 0),
+                    line.get('subtotal', 0),
+                    line.get('analytical_account_id')
+                ))
+        
+        connection.commit()
+        
+        logger.info(f'✅ Customer invoice created: {invoice_id}')
+        return jsonify({'id': invoice_id, 'message': 'Invoice created'}), 201
+        
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        logger.error(f'❌ Error creating customer invoice: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            release_connection(connection)
+
+@app.route('/api/customer-invoices/<int:invoice_id>', methods=['GET'])
+@token_required
+def get_customer_invoice(current_user, invoice_id):
+    """Get single customer invoice with lines"""
+    try:
+        user_id = current_user['id']
+        
+        # Get invoice header
+        query = """
+        SELECT ci.*, c.name as customer_name, c.email as customer_email
+        FROM customer_invoices ci
+        LEFT JOIN contacts c ON ci.customer_id = c.id
+        WHERE ci.id = %s AND ci.user_id = %s
+        """
+        
+        results = execute_query(query, (invoice_id, user_id))
+        
+        if not results:
+            return jsonify({'error': 'Invoice not found'}), 404
+            
+        invoice = results[0]
+        
+        # Get invoice lines
+        lines_query = """
+        SELECT cil.*, p.name as product_name, aa.name as analytical_name
+        FROM customer_invoice_lines cil
+        LEFT JOIN products p ON cil.product_id = p.id
+        LEFT JOIN analytical_accounts aa ON cil.analytical_account_id = aa.id
+        WHERE cil.customer_invoice_id = %s
+        """
+        
+        invoice['lines'] = execute_query(lines_query, (invoice_id,))
+        
+        return jsonify(invoice), 200
+        
+    except Exception as e:
+        logger.error(f'❌ Error fetching customer invoice: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/customer-invoices/<int:invoice_id>/payment', methods=['POST'])
+@token_required
+def record_invoice_payment(current_user, invoice_id):
+    """Record payment for invoice"""
+    connection = None
+    cursor = None
+    try:
+        user_id = current_user['id']
+        data = request.get_json()
+        
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        # Get current invoice
+        cursor.execute("""
+            SELECT total, paid_via_cash, paid_via_bank, paid_via_online 
+            FROM customer_invoices 
+            WHERE id = %s AND user_id = %s
+        """, (invoice_id, user_id))
+        
+        invoice = cursor.fetchone()
+        if not invoice:
+            return jsonify({'error': 'Invoice not found'}), 404
+        
+        total, paid_cash, paid_bank, paid_online = invoice
+        
+        # Add new payment
+        payment_type = data.get('payment_type', 'online')
+        amount = float(data.get('amount', 0))
+        
+        if payment_type == 'cash':
+            paid_cash += amount
+        elif payment_type == 'bank':
+            paid_bank += amount
+        else:
+            paid_online += amount
+        
+        # Update invoice (trigger will handle payment status)
+        update_query = """
+        UPDATE customer_invoices 
+        SET paid_via_cash = %s, paid_via_bank = %s, paid_via_online = %s
+        WHERE id = %s AND user_id = %s
+        """
+        
+        cursor.execute(update_query, (paid_cash, paid_bank, paid_online, invoice_id, user_id))
+        
+        connection.commit()
+        
+        logger.info(f'✅ Payment recorded for invoice: {invoice_id}')
+        return jsonify({'message': 'Payment recorded successfully'}), 200
+        
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        logger.error(f'❌ Error recording payment: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            release_connection(connection)
+
+logger.info("✅ Customer Invoices API routes registered")
+
 # ===== API ROUTES =====
 
 @app.route('/api/')
