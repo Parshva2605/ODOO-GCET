@@ -136,6 +136,9 @@ function displayContacts(contacts) {
             ? '<span class="badge bg-success">Customer</span>'
             : '<span class="badge bg-primary">Vendor</span>';
         
+        // Show delete button only for vendors and not in "All Contacts" tab
+        const showDeleteButton = contact.type === 'vendor' && currentTab !== 'all';
+        
         return `
             <tr>
                 <td>${contact.name}</td>
@@ -148,9 +151,11 @@ function displayContacts(contacts) {
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="openEditModal(${contact.id})" title="Edit">
                         <i class="fas fa-edit"></i>
                     </button>
+                    ${showDeleteButton ? `
                     <button class="btn btn-sm btn-outline-danger" onclick="handleDeleteContact(${contact.id})" title="Delete">
                         <i class="fas fa-trash"></i>
                     </button>
+                    ` : ''}
                 </td>
             </tr>
         `;

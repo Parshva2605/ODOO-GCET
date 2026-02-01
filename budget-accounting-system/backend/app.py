@@ -852,13 +852,13 @@ def get_portal_invoices():
         cursor = connection.cursor()
         
         if 'customer' in contact_role:
-            # Get customer invoices
+            # Get customer invoices (both draft and posted)
             query = """
             SELECT 
                 id, reference, date, total, payment_status,
-                paid_via_cash, paid_via_bank, paid_via_online, amount_due
+                paid_via_cash, paid_via_bank, paid_via_online, amount_due, state
             FROM customer_invoices
-            WHERE customer_id = %s AND state = 'posted'
+            WHERE customer_id = %s
             ORDER BY date DESC
             """
         else:
