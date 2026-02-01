@@ -16,9 +16,14 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
+            flex-direction: column;
         }
         #qrCodeContainer canvas {
             margin: 0 auto;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 10px;
+            background: white;
         }
         .btn-purple {
             background-color: #5f259f;
@@ -43,15 +48,23 @@
         .text-purple {
             color: #5f259f !important;
         }
-        .phonepe-simulator {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        .phonepe-container {
             max-width: 400px;
             margin: 0 auto;
         }
-        .phonepe-header {
-            border-radius: 10px 10px 0 0;
+        .payment-details {
+            border: 1px solid #dee2e6;
+        }
+        .payment-steps {
+            text-align: left;
+            max-width: 250px;
+            margin: 0 auto;
+        }
+        .qr-instructions {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
         }
     </style>
 </head>
@@ -116,7 +129,7 @@
                         <ul class="nav nav-tabs justify-content-center mb-4" role="tablist">
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#qrTab" type="button">
-                                    <i class="fas fa-qrcode"></i> UPI QR Code
+                                    <i class="fas fa-qrcode"></i> QR Payment
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
@@ -129,23 +142,84 @@
                         <div class="tab-content">
                             <!-- QR Code Tab -->
                             <div class="tab-pane fade show active" id="qrTab">
-                                <p class="text-muted mb-3">Scan QR code with any UPI app</p>
-                                <div id="qrCodeContainer" class="d-flex justify-content-center mb-3"></div>
-                                <p class="fw-bold">UPI ID: <span id="upiId"></span></p>
-                                <p class="text-muted small">
-                                    <i class="fas fa-check-circle text-success"></i> Works with PhonePe, GPay, Paytm, BHIM
-                                </p>
+                                <div class="qr-instructions">
+                                    <h6><i class="fas fa-mobile-alt text-primary"></i> How to Pay with QR Code:</h6>
+                                    <ol class="small text-start mb-0">
+                                        <li>Scan the QR code below with your phone camera</li>
+                                        <li>Choose your payment result (Success/Pending/Failed)</li>
+                                        <li>Click Continue to complete payment</li>
+                                        <li>Return here to see updated status</li>
+                                    </ol>
+                                </div>
+                                
+                                <div id="qrCodeContainer">
+                                    <div class="text-muted">
+                                        <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                                        <div>Generating QR Code...</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <p class="fw-bold">UPI ID: <span id="upiId">shivfurniture@paytm</span></p>
+                                    <p class="text-muted small">
+                                        <i class="fas fa-shield-alt text-success"></i> Secure payment simulation for testing
+                                    </p>
+                                </div>
                             </div>
                             
                             <!-- PhonePe Tab -->
                             <div class="tab-pane fade" id="phonePeTab">
-                                <p class="text-muted mb-3">Pay using PhonePe app directly</p>
-                                <button class="btn btn-lg btn-purple mb-3" onclick="openPhonePe()">
-                                    <i class="fas fa-mobile-alt"></i> Open PhonePe
-                                </button>
-                                <p class="text-muted small">
-                                    <i class="fas fa-info-circle"></i> Test Mode: Will open PhonePe payment simulator
-                                </p>
+                                <div class="phonepe-container">
+                                    <!-- PhonePe Header -->
+                                    <div class="phonepe-header bg-purple text-white p-3 rounded-top mb-3">
+                                        <div class="d-flex align-items-center justify-content-center">
+                                            <i class="fas fa-mobile-alt fa-2x me-3"></i>
+                                            <div>
+                                                <h5 class="mb-0">PhonePe Payment</h5>
+                                                <small>Secure & Fast Payment Gateway</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Payment Details -->
+                                    <div class="payment-details bg-light p-3 rounded mb-3">
+                                        <div class="row text-center">
+                                            <div class="col-6">
+                                                <small class="text-muted">Pay to</small>
+                                                <div class="fw-bold">Shiv Furniture</div>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted">Amount</small>
+                                                <div class="fw-bold text-success">₹<span id="phonePeAmount"></span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- PhonePe Payment Button -->
+                                    <div class="text-center mb-3">
+                                        <div class="d-grid gap-2 mb-3">
+                                            <button class="btn btn-purple btn-lg" onclick="openPhonePe()">
+                                                <i class="fas fa-credit-card"></i> Pay with PhonePe
+                                            </button>
+                                        </div>
+                                        
+                                        <!-- Payment Instructions -->
+                                        <div class="payment-steps">
+                                            <small class="text-muted">
+                                                <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Click "Pay with PhonePe" button</div>
+                                                <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> You'll be redirected to PhonePe</div>
+                                                <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Complete payment securely</div>
+                                                <div><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Return here automatically</div>
+                                            </small>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Test Mode Notice -->
+                                    <div class="alert alert-info alert-sm">
+                                        <i class="fas fa-info-circle"></i> 
+                                        <strong>Test Mode:</strong> Using PhonePe Sandbox Environment
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         

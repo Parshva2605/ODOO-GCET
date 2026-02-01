@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal PhonePe Integration Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .btn-purple {
+            background-color: #5f259f;
+            border-color: #5f259f;
+            color: white;
+        }
+        .btn-purple:hover {
+            background-color: #4a1d7d;
+            border-color: #4a1d7d;
+            color: white;
+        }
+        .btn-outline-purple {
+            color: #5f259f;
+            border-color: #5f259f;
+        }
+        .btn-outline-purple:hover {
+            background-color: #5f259f;
+            border-color: #5f259f;
+            color: white;
+        }
+        .bg-purple {
+            background-color: #5f259f !important;
+        }
+        .nav-tabs .nav-link.active {
+            color: #5f259f;
+            border-color: #dee2e6 #dee2e6 #fff;
+        }
+        .phonepe-container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .payment-details {
+            border: 1px solid #dee2e6;
+        }
+        .phonepe-qr-section {
+            border: 2px dashed #5f259f;
+            border-radius: 10px;
+            padding: 20px;
+            background: #f8f9ff;
+        }
+        #phonePeQrContainer canvas {
+            border: 3px solid #5f259f;
+            border-radius: 10px;
+            padding: 10px;
+            background: white;
+        }
+        .payment-steps {
+            text-align: left;
+            max-width: 250px;
+            margin: 0 auto;
+        }
+        .alert-sm {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+        }
+        #qrCodeContainer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4><i class="fas fa-mobile-alt"></i> Portal PhonePe Integration Test</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <strong>Test:</strong> Complete PhonePe payment flow with QR code generation
+                        </div>
+                        
+                        <!-- Mock Invoice Payment -->
+                        <div class="text-center mb-4">
+                            <h4 class="mb-2">Invoice: <span id="payInvoiceRef">INV-TEST-001</span></h4>
+                            <h2 class="text-primary mb-4">Amount: ₹<span id="payAmount">750.00</span></h2>
+                            
+                            <!-- Payment Method Tabs -->
+                            <ul class="nav nav-tabs justify-content-center mb-4" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#qrTab" type="button">
+                                        <i class="fas fa-qrcode"></i> UPI QR Code
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#phonePeTab" type="button">
+                                        <i class="fas fa-mobile-alt"></i> PhonePe
+                                    </button>
+                                </li>
+                            </ul>
+                            
+                            <div class="tab-content">
+                                <!-- QR Code Tab -->
+                                <div class="tab-pane fade show active" id="qrTab">
+                                    <p class="text-muted mb-3">Scan QR code with any UPI app</p>
+                                    <div id="qrCodeContainer" class="d-flex justify-content-center mb-3">
+                                        <div class="text-muted">
+                                            <i class="fas fa-qrcode fa-3x mb-2"></i>
+                                            <div>Click "Generate QR" to create UPI QR</div>
+                                        </div>
+                                    </div>
+                                    <p class="fw-bold">UPI ID: <span id="upiId">shivfurniture@paytm</span></p>
+                                    <button class="btn btn-primary mb-3" onclick="generateUpiQR()">
+                                        <i class="fas fa-qrcode"></i> Generate UPI QR
+                                    </button>
+                                    <p class="text-muted small">
+                                        <i class="fas fa-check-circle text-success"></i> Works with PhonePe, GPay, Paytm, BHIM
+                                    </p>
+                                </div>
+                                
+                                <!-- PhonePe Tab -->
+                                <div class="tab-pane fade" id="phonePeTab">
+                                    <div class="phonepe-container">
+                                        <!-- PhonePe Header -->
+                                        <div class="phonepe-header bg-purple text-white p-3 rounded-top mb-3">
+                                            <div class="d-flex align-items-center justify-content-center">
+                                                <i class="fas fa-mobile-alt fa-2x me-3"></i>
+                                                <div>
+                                                    <h5 class="mb-0">PhonePe Payment</h5>
+                                                    <small>Secure & Fast Payment</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Payment Details -->
+                                        <div class="payment-details bg-light p-3 rounded mb-3">
+                                            <div class="row text-center">
+                                                <div class="col-6">
+                                                    <small class="text-muted">Pay to</small>
+                                                    <div class="fw-bold">Shiv Furniture</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Amount</small>
+                                                    <div class="fw-bold text-success">₹<span id="phonePeAmount">750.00</span></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- PhonePe QR Code -->
+                                        <div class="phonepe-qr-section text-center mb-3">
+                                            <p class="text-muted mb-2">Scan QR with PhonePe App</p>
+                                            <div id="phonePeQrContainer" class="d-flex justify-content-center mb-3" style="min-height: 200px; align-items: center;">
+                                                <div class="text-muted">
+                                                    <i class="fas fa-qrcode fa-3x mb-2"></i>
+                                                    <div>QR Code will appear here</div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- PhonePe App Button -->
+                                            <div class="d-grid gap-2 mb-3">
+                                                <button class="btn btn-purple btn-lg" onclick="generatePhonePeQR()">
+                                                    <i class="fas fa-qrcode"></i> Generate PhonePe QR
+                                                </button>
+                                                <button class="btn btn-outline-purple" onclick="simulatePhonePePayment()">
+                                                    <i class="fas fa-play"></i> Simulate Payment (Test Mode)
+                                                </button>
+                                            </div>
+                                            
+                                            <!-- Payment Instructions -->
+                                            <div class="payment-steps">
+                                                <small class="text-muted">
+                                                    <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Open PhonePe app</div>
+                                                    <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Scan QR code or click button above</div>
+                                                    <div class="mb-1"><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Complete payment</div>
+                                                    <div><i class="fas fa-circle text-purple" style="font-size: 6px;"></i> Return here to confirm</div>
+                                                </small>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Test Mode Notice -->
+                                        <div class="alert alert-warning alert-sm">
+                                            <i class="fas fa-info-circle"></i> 
+                                            <strong>Test Mode:</strong> Use "Simulate Payment" for testing
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> After completing payment, click the button below
+                            </div>
+                            
+                            <button class="btn btn-success btn-lg px-5" onclick="confirmPayment()">
+                                <i class="fas fa-check-circle"></i> I have completed payment
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        // Mock payment data
+        const paymentData = {
+            amount: 750.00,
+            reference: 'INV-TEST-001',
+            upiId: 'shivfurniture@paytm',
+            upiString: 'upi://pay?pa=shivfurniture@paytm&pn=Shiv Furniture&am=750.00&tn=Invoice INV-TEST-001&cu=INR'
+        };
+        
+        // Generate UPI QR Code
+        function generateUpiQR() {
+            const qrContainer = document.getElementById('qrCodeContainer');
+            qrContainer.innerHTML = ''; // Clear previous QR
+            
+            new QRCode(qrContainer, {
+                text: paymentData.upiString,
+                width: 256,
+                height: 256,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+        
+        // Generate PhonePe QR Code
+        function generatePhonePeQR() {
+            const phonePeQrContainer = document.getElementById('phonePeQrContainer');
+            phonePeQrContainer.innerHTML = ''; // Clear previous QR
+            
+            // Create PhonePe styled QR code
+            new QRCode(phonePeQrContainer, {
+                text: paymentData.upiString,
+                width: 200,
+                height: 200,
+                colorDark: "#5f259f",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        }
+        
+        // Simulate PhonePe Payment
+        function simulatePhonePePayment() {
+            const phonePeQrContainer = document.getElementById('phonePeQrContainer');
+            
+            const simulatorHtml = `
+                <div class="phonepe-payment-simulator">
+                    <div class="bg-purple text-white p-3 rounded mb-3">
+                        <h6 class="mb-0"><i class="fas fa-mobile-alt"></i> PhonePe Payment Simulator</h6>
+                    </div>
+                    
+                    <div class="payment-sim-details bg-light p-3 rounded mb-3">
+                        <div class="row text-center">
+                            <div class="col-12 mb-2">
+                                <strong>Pay ₹${paymentData.amount.toFixed(2)}</strong>
+                            </div>
+                            <div class="col-12">
+                                <small class="text-muted">to Shiv Furniture</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success btn-lg" onclick="processSimulatedPayment()">
+                            <i class="fas fa-check-circle"></i> Pay Now
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="cancelSimulatedPayment()">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle"></i> This is a test payment simulator
+                        </small>
+                    </div>
+                </div>
+            `;
+            
+            phonePeQrContainer.innerHTML = simulatorHtml;
+        }
+        
+        // Process Simulated Payment
+        function processSimulatedPayment() {
+            const phonePeQrContainer = document.getElementById('phonePeQrContainer');
+            
+            // Show processing
+            phonePeQrContainer.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-purple mb-3"></div>
+                    <h6>Processing Payment...</h6>
+                    <small class="text-muted">Please wait</small>
+                </div>
+            `;
+            
+            // Simulate payment processing
+            setTimeout(() => {
+                // Show success
+                phonePeQrContainer.innerHTML = `
+                    <div class="text-center py-4">
+                        <div class="text-success mb-3">
+                            <i class="fas fa-check-circle fa-4x"></i>
+                        </div>
+                        <h5 class="text-success">Payment Successful!</h5>
+                        <p class="text-muted mb-3">Transaction ID: TXN${Date.now().toString().slice(-10)}</p>
+                        <div class="alert alert-success">
+                            <strong>₹${paymentData.amount.toFixed(2)}</strong> paid successfully
+                        </div>
+                        <button class="btn btn-primary" onclick="confirmPayment()">
+                            <i class="fas fa-arrow-right"></i> Continue
+                        </button>
+                    </div>
+                `;
+            }, 2000);
+        }
+        
+        // Cancel Simulated Payment
+        function cancelSimulatedPayment() {
+            // Reset to original QR code
+            generatePhonePeQR();
+        }
+        
+        // Confirm Payment
+        function confirmPayment() {
+            alert('✅ Payment confirmed! In the real system, this would update the invoice status and redirect to the dashboard.');
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-generate UPI QR on load
+            generateUpiQR();
+        });
+    </script>
+</body>
+</html>

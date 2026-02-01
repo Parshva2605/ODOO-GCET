@@ -5,6 +5,11 @@ from utils.auth import token_required
 from utils.db import get_connection, release_connection, execute_query, execute_update, execute_insert
 import logging
 import time
+import hashlib
+import base64
+import json
+import requests
+import uuid
 
 # ===== SETUP LOGGING =====
 logging.basicConfig(
@@ -21,6 +26,14 @@ logger.info("🚀 Flask app initialized")
 # ===== CORS CONFIGURATION =====
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 logger.info("✅ CORS enabled")
+
+# ============================================
+# PHONEPE CONFIGURATION (UAT - TEST MODE)
+# ============================================
+PHONEPE_MERCHANT_ID = "PGTESTPAYUAT86"
+PHONEPE_SALT_KEY = "96434309-7796-489d-8924-ab56988a6076"
+PHONEPE_SALT_INDEX = 1
+PHONEPE_PAY_URL = "https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay"
 
 # ===== REGISTER BLUEPRINTS =====
 from routes.auth import auth_bp
@@ -928,6 +941,294 @@ def generate_payment_qr(invoice_id):
         return jsonify({'error': str(e)}), 500
 
 logger.info("✅ Portal Authentication API routes registered")
+
+# ============================================
+# PHONEPE PAYMENT GATEWAY API
+# ============================================
+
+@app.route('/api/phonepe/initiate', methods=['POST'])
+@token_required
+def phonepe_initiate_payment(current_user):
+    """Initiate PhonePe payment"""
+    try:
+        # Handle portal authentication differently
+        auth_header = request.headers.get('Authorization')
+        token = auth_header.split(' ')[1] if auth_header else None
+        
+        from routes.auth import verify_token
+        payload = verify_token(token)
+        
+        # Handle both portal and admin users
+        if payload and 'portal' in payload.get('role', ''):
+            contact_id = payload.get('user_id')  # For portal users, user_id is actually contact_id
+            # Get the actual user_id from contacts table
+            connection = get_connection()
+            cursor = connection.cursor()
+            cursor.execute("SELECT user_id FROM contacts WHERE id = %s", (contact_id,))
+            result = cursor.fetchone()
+            if not result:
+                return jsonify({'error': 'Contact not found'}), 404
+            user_id = result[0]
+            cursor.close()
+            release_connection(connection)
+        else:
+            # Regular admin user
+            contact_id = None
+            user_id = current_user['id']
+        
+        data = request.get_json()
+        invoice_id = data.get('invoice_id')
+        amount = float(data.get('amount'))
+        
+        # Get invoice details
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        if contact_id:
+            # Portal user - verify they own this invoice
+            cursor.execute("""
+                SELECT ci.reference, c.name, c.email, c.phone
+                FROM customer_invoices ci
+                JOIN contacts c ON ci.customer_id = c.id
+                WHERE ci.id = %s AND ci.customer_id = %s
+            """, (invoice_id, contact_id))
+        else:
+            # Admin user - can access any invoice
+            cursor.execute("""
+                SELECT ci.reference, c.name, c.email, c.phone
+                FROM customer_invoices ci
+                JOIN contacts c ON ci.customer_id = c.id
+                WHERE ci.id = %s AND ci.user_id = %s
+            """, (invoice_id, user_id))
+        
+        result = cursor.fetchone()
+        if not result:
+            cursor.close()
+            release_connection(connection)
+            return jsonify({'error': 'Invoice not found'}), 404
+        
+        reference, customer_name, customer_email, customer_phone = result
+        
+        # Generate unique transaction ID (MUST be unique every time!)
+        txn_id = "SHIV" + str(uuid.uuid4().hex)[:12].upper()
+        user_id_str = "USER" + str(uuid.uuid4().hex)[:6].upper()
+        
+        # Prepare PhonePe payload
+        payload = {
+            "merchantId": PHONEPE_MERCHANT_ID,
+            "merchantTransactionId": txn_id,
+            "merchantUserId": user_id_str,
+            "amount": int(amount * 100),  # Convert to paise
+            "redirectUrl": f"http://127.0.0.1:5000/phonepe-callback.html?invoice_id={invoice_id}&txn_id={txn_id}",
+            "redirectMode": "REDIRECT",
+            "paymentInstrument": {
+                "type": "PAY_PAGE"
+            }
+        }
+        
+        # Encode payload to base64
+        payload_json = json.dumps(payload)
+        base64_payload = base64.b64encode(payload_json.encode()).decode()
+        
+        # Generate X-VERIFY header: SHA256(Base64 + "/pg/v1/pay" + SaltKey) + "###" + Index
+        main_string = base64_payload + "/pg/v1/pay" + PHONEPE_SALT_KEY
+        sha256_val = hashlib.sha256(main_string.encode()).hexdigest()
+        x_verify = f"{sha256_val}###{PHONEPE_SALT_INDEX}"
+        
+        # Make API request to PhonePe
+        headers = {
+            "Content-Type": "application/json",
+            "X-VERIFY": x_verify,
+            "accept": "application/json"
+        }
+        
+        phonepe_response = requests.post(
+            PHONEPE_PAY_URL,
+            json={"request": base64_payload},
+            headers=headers
+        )
+        
+        response_data = phonepe_response.json()
+        
+        # DEBUG: Print response
+        print(f"\n--- PHONEPE DEBUG ---")
+        print(f"Status: {phonepe_response.status_code}")
+        print(f"Response: {response_data}")
+        print(f"---------------------\n")
+        
+        # Store transaction details
+        cursor.execute("""
+            INSERT INTO phonepe_transactions 
+            (user_id, invoice_id, merchant_transaction_id, amount, status)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (user_id, invoice_id, txn_id, amount, 'PENDING'))
+        
+        connection.commit()
+        cursor.close()
+        release_connection(connection)
+        
+        if response_data.get('success'):
+            payment_url = response_data['data']['instrumentResponse']['redirectInfo']['url']
+            
+            logger.info(f'✅ PhonePe payment initiated: {txn_id}')
+            
+            return jsonify({
+                'success': True,
+                'payment_url': payment_url,
+                'merchant_transaction_id': txn_id
+            }), 200
+        else:
+            error_msg = response_data.get('message', 'Payment initiation failed')
+            return jsonify({'error': error_msg}), 400
+        
+    except Exception as e:
+        logger.error(f'❌ PhonePe initiate error: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/phonepe/verify/<txn_id>', methods=['GET'])
+@token_required
+def phonepe_verify_payment(current_user, txn_id):
+    """Verify PhonePe payment status"""
+    try:
+        # Generate X-VERIFY for status check
+        verify_string = f"/pg/v1/status/{PHONEPE_MERCHANT_ID}/{txn_id}{PHONEPE_SALT_KEY}"
+        verify_hash = hashlib.sha256(verify_string.encode()).hexdigest()
+        x_verify = f"{verify_hash}###{PHONEPE_SALT_INDEX}"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "X-VERIFY": x_verify,
+            "accept": "application/json"
+        }
+        
+        status_url = f"https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/status/{PHONEPE_MERCHANT_ID}/{txn_id}"
+        
+        response = requests.get(status_url, headers=headers)
+        status_data = response.json()
+        
+        print(f"\n--- STATUS CHECK ---")
+        print(f"Transaction: {txn_id}")
+        print(f"Response: {status_data}")
+        print(f"--------------------\n")
+        
+        # Update database if payment successful
+        if status_data.get('success') and status_data.get('code') == 'PAYMENT_SUCCESS':
+            connection = get_connection()
+            cursor = connection.cursor()
+            
+            # Get transaction details
+            cursor.execute("""
+                SELECT invoice_id, amount, user_id
+                FROM phonepe_transactions
+                WHERE merchant_transaction_id = %s
+            """, (txn_id,))
+            
+            result = cursor.fetchone()
+            if result:
+                invoice_id, amount, user_id = result
+                
+                # Update invoice payment
+                cursor.execute("""
+                    UPDATE customer_invoices 
+                    SET paid_via_online = paid_via_online + %s
+                    WHERE id = %s
+                """, (amount, invoice_id))
+                
+                # Create payment record
+                payment_ref = f"PAY-{txn_id[:8]}"
+                cursor.execute("""
+                    INSERT INTO payments 
+                    (user_id, reference, date, payment_type, payment_method, amount, invoice_id, notes)
+                    VALUES (%s, %s, CURRENT_DATE, 'customer', 'online', %s, %s, %s)
+                """, (user_id, payment_ref, amount, invoice_id, f'PhonePe: {txn_id}'))
+                
+                # Update transaction status
+                cursor.execute("""
+                    UPDATE phonepe_transactions 
+                    SET status = 'SUCCESS', phonepe_transaction_id = %s
+                    WHERE merchant_transaction_id = %s
+                """, (status_data['data']['transactionId'], txn_id))
+                
+                connection.commit()
+            
+            cursor.close()
+            release_connection(connection)
+        
+        return jsonify(status_data), 200
+        
+    except Exception as e:
+        logger.error(f'❌ PhonePe verify error: {str(e)}')
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+logger.info("✅ PhonePe Payment Gateway API routes registered")
+
+# ============================================
+# PAYMENT SIMULATOR API
+# ============================================
+
+@app.route('/api/payment-simulator/update', methods=['POST'])
+def payment_simulator_update():
+    """Handle payment simulator status updates"""
+    try:
+        data = request.get_json()
+        invoice_id = data.get('invoice_id')
+        txn_id = data.get('txn_id')
+        status = data.get('status')
+        amount = float(data.get('amount', 0))
+        
+        connection = get_connection()
+        cursor = connection.cursor()
+        
+        if status == 'success':
+            # Update invoice as paid
+            cursor.execute("""
+                UPDATE customer_invoices 
+                SET paid_via_online = paid_via_online + %s
+                WHERE id = %s
+            """, (amount, invoice_id))
+            
+            # Create payment record
+            payment_ref = f"SIM-{txn_id}"
+            cursor.execute("""
+                INSERT INTO payments 
+                (user_id, reference, date, payment_type, payment_method, amount, invoice_id, notes)
+                SELECT user_id, %s, CURRENT_DATE, 'customer', 'online', %s, %s, %s
+                FROM customer_invoices WHERE id = %s
+            """, (payment_ref, amount, invoice_id, f'Simulator: {txn_id}', invoice_id))
+            
+        elif status == 'pending':
+            # Create pending payment record
+            payment_ref = f"PEN-{txn_id}"
+            cursor.execute("""
+                INSERT INTO payments 
+                (user_id, reference, date, payment_type, payment_method, amount, invoice_id, notes)
+                SELECT user_id, %s, CURRENT_DATE, 'customer', 'online', %s, %s, %s
+                FROM customer_invoices WHERE id = %s
+            """, (payment_ref, amount, invoice_id, f'Pending: {txn_id}', invoice_id))
+            
+        # For failed payments, we don't update anything
+        
+        connection.commit()
+        cursor.close()
+        release_connection(connection)
+        
+        logger.info(f'✅ Payment simulator updated: {txn_id} - {status}')
+        
+        return jsonify({
+            'success': True,
+            'status': status,
+            'txn_id': txn_id
+        }), 200
+        
+    except Exception as e:
+        logger.error(f'❌ Payment simulator error: {str(e)}')
+        return jsonify({'error': str(e)}), 500
+
+logger.info("✅ Payment Simulator API routes registered")
 
 # ============================================
 # PAYMENTS API
